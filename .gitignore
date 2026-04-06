@@ -1,0 +1,26 @@
+# OS and editor files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*.tmp
+
+# Dependency and build artifacts
+node_modules/
+vendor/
+dist/
+build/
+coverage/
+
+# Archives and generated exports
+*.zip
+*.tar
+*.tar.gz
+*.log
+
+# Environment and local config
+.env
+.env.*
+
+# WordPress runtime content that should not live in the plugin repo
+wp-content/
