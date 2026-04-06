@@ -1,0 +1,547 @@
+/* FOUNDATION FRONTEND (Glassmorphic Dark / Gradient Light)
+   ----------------------------------------------------
+   – Light mode: Custom complex gradient card
+   – Dark mode: Inkfire hero gradient + glass panels
+*/
+
+/* ------------------------------
+   0. ROOT VARIABLES
+------------------------------ */
+
+:root {
+    /* --- LIGHT MODE VARIABLES --- */
+    --fnd-bg: #e5e7eb;            
+    /* Note: Card background is now handled directly on the container */
+    --fnd-input-bg: #ffffff;      /* Inputs should be white to pop against gradient */
+    
+    --fnd-text: #111827;          
+    --fnd-text-muted: #4b5563;    
+    --fnd-placeholder: #9ca3af;
+    --fnd-border: rgba(148,163,184,0.28); /* Matches your new border style */
+
+    --fnd-primary: #FBCCBF;       
+    --fnd-primary-fg: #151622;    
+    --fnd-primary-hover: #ffdcd3; 
+
+    --fnd-accent: #07a079;        
+    --fnd-radius: 32px;           /* Updated to match your request */
+    --fnd-shadow:                 /* Updated to match your request */
+        inset 0 6px 18px rgba(15,23,42,0.045),
+        inset 0 -6px 18px rgba(15,23,42,0.035),
+        inset 0 0 0.5px rgba(255,255,255,0.65),
+        0 3px 12px rgba(15,23,42,0.12);
+
+    /* Shared glass button gradients */
+    --fnd-btn-gradient:
+        radial-gradient(circle at 0% 0%, rgba(255,255,255,0.12), transparent 60%),
+        radial-gradient(circle at 100% 0%, rgba(0,0,0,0.20), transparent 65%),
+        linear-gradient(135deg, #0E4F4D 0%, #1E6167 50%, #01AE93 100%);
+    --fnd-btn-gradient-hover:
+        radial-gradient(circle at 0% 0%, rgba(255,255,255,0.12), transparent 55%),
+        radial-gradient(circle at 100% 0%, rgba(0,0,0,0.15), transparent 65%),
+        linear-gradient(135deg, #fbccbf 0%, #e27200 100%);
+}
+
+/* --- DARK MODE VARIABLES --- */
+[data-theme="dark"] {
+    --fnd-bg: #020617;
+    --fnd-input-bg: rgba(12,18,32,0.92);
+
+    --fnd-text: #ffffff;
+    --fnd-text-muted: #e5e7eb;
+    --fnd-placeholder: #9ca3af;
+
+    --fnd-border: rgba(148,163,184,0.55);
+
+    --fnd-primary: #FBCCBF;
+    --fnd-primary-fg: #151622;
+    --fnd-primary-hover: #ffffff;
+
+    --fnd-accent: #01AE93;
+    --fnd-shadow: none;
+}
+
+/* ------------------------------
+   1. GLOBAL RESET & OVERLAY
+------------------------------ */
+
+#foundation-app-overlay,
+#foundation-app-overlay * {
+    box-sizing: border-box;
+}
+
+#foundation-app-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: transparent; /* Updated as requested */
+    backdrop-filter: blur(8px); /* Optional: Slight blur to focus on wizard */
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--fnd-text);
+}
+
+#foundation-app-overlay.is-active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    #foundation-app-overlay.is-active .wizard-container {
+        transform: translateY(8px);
+        opacity: 0;
+        animation: fnd-dialog-in 0.3s ease-out forwards;
+    }
+}
+
+@keyframes fnd-dialog-in {
+    to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #foundation-app-overlay { transition: none; }
+    .wizard-container, .option-card, #btn-next, .theme-toggle, .close-link {
+        transition: none !important; animation: none !important;
+    }
+}
+
+/* ------------------------------
+   2. MAIN LAYOUT CONTAINER (NEW LIGHT MODE STYLE)
+------------------------------ */
+
+.wizard-container {
+    width: 95vw;
+    max-width: 1600px;
+    height: 90vh;
+    display: flex;
+    overflow: hidden;
+
+    /* --- NEW GRADIENT STACK --- */
+    background: 
+        linear-gradient(to bottom, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0) 22%),
+        radial-gradient(circle at 0% 0%, rgba(223,21,124,0.05), transparent 60%),
+        radial-gradient(circle at 100% 0%, rgba(23,154,214,0.06), transparent 60%),
+        radial-gradient(circle at 50% 110%, rgba(251,204,191,0.14), rgba(255,255,255,0.90)),
+        rgba(252,252,255,0.96);
+    
+    background-blend-mode: soft-light, normal, normal, normal, normal;
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-radius: 32px;
+    border: 1px solid rgba(148,163,184,0.28);
+    box-shadow: 
+        inset 0 6px 18px rgba(15,23,42,0.045),
+        inset 0 -6px 18px rgba(15,23,42,0.035),
+        inset 0 0 0.5px rgba(255,255,255,0.65),
+        0 3px 12px rgba(15,23,42,0.12);
+    
+    color: #111827;
+    transition: all 0.3s ease;
+}
+
+/* Full Width Mode */
+.wizard-container.full-width-mode { max-width: 1600px; }
+.wizard-container.full-width-mode .wizard-cover { display: none; }
+.wizard-container.full-width-mode .wizard-main { border-left: none; }
+
+/* ------------------------------
+   3. LEFT SIDE: COVER IMAGE
+------------------------------ */
+
+.wizard-cover {
+    flex: 1;
+    background-image: url('https://inkfire.co.uk/wp-content/uploads/2024/01/Homepage-Hero.png');
+    background-size: cover;
+    background-position: center;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 60px;
+    color: #ffffff;
+}
+
+.wizard-cover::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(21, 22, 34, 0.3), rgba(21, 22, 34, 0.9));
+}
+
+.cover-content { position: relative; z-index: 2; }
+.cover-content h1 { font-size: 2.5rem; font-weight: 800; margin-bottom: 10px; line-height: 3rem; }
+.cover-content p { font-size: 1rem; opacity: 0.9; max-width: 100%; }
+
+/* ------------------------------
+   4. RIGHT SIDE: MAIN AREA
+------------------------------ */
+
+.wizard-main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: transparent; /* Important: Lets the container gradient show through */
+    position: relative;
+}
+
+/* HEADER */
+.wizard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 25px 20px 22px;
+    flex-shrink: 0;
+    gap: 20px;
+    background: transparent; /* Transparent to show gradient */
+    border-bottom: 1px solid var(--fnd-border);
+}
+
+.wizard-container.full-width-mode .wizard-header { border-bottom: 0; }
+
+.wizard-title {
+    font-size: 1.4rem; font-weight: 800; letter-spacing: -0.03em;
+    color: var(--fnd-text); display: none; line-height: 1.2;
+}
+
+.wizard-container.full-width-mode .wizard-title {
+    display: flex; align-items: center; gap: 10px;
+}
+
+.wizard-controls {
+    display: flex; align-items: center; gap: 12px; margin-left: auto;
+}
+
+/* ------------------------------
+   5. HEADER BUTTONS
+------------------------------ */
+
+.theme-toggle, .close-link {
+    background: transparent !important;
+    border: 2px solid var(--fnd-accent) !important;
+    color: var(--fnd-accent) !important;
+    font-weight: 700 !important;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s ease;
+    padding: 8px 20px;
+    border-radius: 50px;
+    box-shadow: none !important;
+    text-decoration: none;
+    display: inline-flex; align-items: center; justify-content: center;
+    min-height: 40px; min-width: 44px;
+}
+
+[data-theme="dark"] .theme-toggle,
+[data-theme="dark"] .close-link {
+    color: #ffffff !important; border-color: #ffffff !important;
+}
+
+.theme-toggle:hover, .close-link:hover {
+    background: rgba(1, 174, 147, 0.08) !important;
+    color: var(--fnd-accent) !important;
+    border-color: var(--fnd-accent) !important;
+    transform: translateY(-1px);
+}
+
+[data-theme="dark"] .theme-toggle:hover,
+[data-theme="dark"] .close-link:hover {
+    color: #ffffff !important; border-color: #ffffff !important;
+    background: rgba(255, 255, 255, 0.1) !important;
+}
+
+.theme-toggle:focus-visible, .close-link:focus-visible,
+#btn-prev:focus-visible, #btn-next:focus-visible { outline-offset: 2px; }
+
+/* ------------------------------
+   6. PROGRESS BAR
+------------------------------ */
+
+.progress-container {
+    display: flex; gap: 8px; margin-bottom: 0; padding: 0; flex-shrink: 0;
+    background: transparent;
+}
+
+.progress-segment {
+    flex: 1; height: 4px; background: rgba(148,163,184,0.4); border-radius: 10px;
+    transition: background 0.4s ease;
+}
+.progress-segment.active { background: #07a079; }
+
+/* ------------------------------
+   7. CONTENT AREA
+------------------------------ */
+
+.wizard-card {
+    display: flex; flex-direction: column; flex: 1; overflow: hidden; position: relative;
+}
+
+.step-banner {
+    background: rgba(255,255,255,0.4); /* Subtle glass for light mode */
+    color: var(--fnd-text);
+    padding: 3vw 3vw;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--fnd-border);
+    text-align: center;
+}
+
+[data-theme="dark"] .step-banner {
+    background: #020617; border-bottom-color: var(--fnd-border);
+}
+
+.step-banner h2 { margin: 0 0 5px; font-size: 1.75rem; font-weight: 800; color: #b45309; }
+[data-theme="dark"] .step-banner h2 { color: #fbccbf; }
+
+.step-banner p {
+    margin: 0 auto; font-size: 1rem; opacity: 0.9; line-height: 1.4;
+    color: var(--fnd-text-muted); max-width: 600px;
+}
+
+#foundation-app-canvas {
+    flex: 1; overflow-y: auto; padding: 32px 40px 40px; position: relative;
+    scrollbar-width: thin; scrollbar-color: var(--fnd-border) transparent;
+    background: transparent;
+}
+
+#foundation-app-canvas::-webkit-scrollbar { width: 6px; }
+#foundation-app-canvas::-webkit-scrollbar-track { background: transparent; }
+#foundation-app-canvas::-webkit-scrollbar-thumb {
+    background-color: var(--fnd-border); border-radius: 20px;
+}
+
+.wizard-footer {
+    padding: 18px 40px 22px;
+    background: transparent;
+    border-top: 1px solid var(--fnd-border);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-shrink: 0; gap: 12px;
+}
+
+[data-theme="dark"] .wizard-footer { background: #020617; }
+
+/* ------------------------------
+   8. FORM ELEMENTS
+------------------------------ */
+
+.step-container {
+    width: 90%; max-width: 90%; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 32px;
+}
+
+.field-wrapper { width: 100%; margin-bottom: 0; }
+.field-wrapper h4 {
+    margin-bottom: 12px; font-size: 1.1rem; font-weight: 700; color: var(--fnd-text);
+}
+
+input[type="text"], input[type="email"], select, textarea {
+    width: 100%; padding: 14px 16px;
+    border: 1px solid var(--fnd-border); /* Thinner border for cleaner look */
+    background: var(--fnd-input-bg);
+    color: var(--fnd-text);
+    border-radius: 12px; font-size: 1rem; outline: none; transition: all 0.2s;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+}
+
+input::placeholder, textarea::placeholder { color: var(--fnd-placeholder); opacity: 1; }
+input:focus-visible, textarea:focus-visible, select:focus-visible {
+    border-color: #07a079; outline-offset: 1px;
+}
+
+.options-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px; width: 100%;
+}
+
+.option-card {
+    background: var(--fnd-input-bg);
+    border: 1px solid var(--fnd-border);
+    padding: 20px 18px; border-radius: 12px;
+    cursor: pointer; transition: all 0.2s ease;
+    text-align: center; display: flex; flex-direction: column;
+    justify-content: center; align-items: center; min-height: 110px;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+}
+
+.option-card:hover {
+    border-color: var(--fnd-primary); transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05);
+}
+
+.option-card.selected {
+    border-color: #04ad93; background: #f0fdf9; /* Light green tint for active */
+}
+[data-theme="dark"] .option-card.selected { background: rgba(1, 174, 147, 0.1); }
+
+.option-card h4 {
+    margin: 0; font-weight: 700; color: var(--fnd-text); font-size: 1.05rem; line-height: 1.3;
+}
+.option-card .price {
+    margin-top: 6px; font-size: 0.9rem; color: var(--fnd-text-muted); font-weight: 600;
+}
+
+/* ------------------------------
+   9. NAV BUTTONS
+------------------------------ */
+
+#btn-prev {
+    background: transparent; color: var(--fnd-text-muted); border: none;
+    font-weight: 700; font-size: 0.95rem; cursor: pointer; padding: 10px 6px;
+    transition: all 0.2s; min-height: 44px; min-width: 44px;
+}
+
+[data-theme="dark"] #btn-prev { color: #e5e7eb; opacity: 0.8; }
+[data-theme="dark"] #btn-prev:hover { opacity: 1; }
+
+#btn-prev:hover:not(:disabled) { color: #07a079; transform: translateX(-3px); }
+#btn-prev:disabled { opacity: 0.3; cursor: not-allowed; }
+
+#btn-next {
+    background: none; background-image: var(--fnd-btn-gradient); color: #FFFFFF;
+    border: 1px solid rgba(255,255,255,0.35); padding: 12px 34px; border-radius: 999px;
+    font-weight: 800; font-size: 1rem; cursor: pointer; transition: all 0.25s ease;
+    min-height: 44px; min-width: 120px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(0,0,0,0.42), 0 8px 18px rgba(0,0,0,0.35);
+}
+
+#btn-next:hover {
+    background-image: var(--fnd-btn-gradient-hover); transform: translateY(-2px);
+    box-shadow: 0 12px 30px rgba(226,114,0,0.45), inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(0,0,0,0.45);
+}
+
+/* ------------------------------
+   10. RANGE SLIDER
+------------------------------ */
+
+.range-wrapper { text-align: center; margin: 0 auto; width: 100%; max-width: 800px; }
+.range-value { font-size: 3rem; font-weight: 800; color: var(--fnd-accent); margin-bottom: 10px; }
+input[type=range] {
+    margin: 24px 0; accent-color: var(--fnd-accent); height: 6px; border: none;
+    background: rgba(148,163,184,0.3); border-radius: 10px; padding: 0;
+}
+
+/* ------------------------------
+   11. LEAD FORM
+------------------------------ */
+
+.foundation-lead-form { max-width: 600px; margin: auto; width: 100%; }
+.foundation-lead-form button {
+    background-image: var(--fnd-btn-gradient) !important; background-color: transparent !important;
+    color: #FFFFFF !important; border-radius: 999px !important;
+    border: 1px solid rgba(255,255,255,0.35) !important; font-weight: 800;
+    transition: all 0.25s ease; margin-top: 15px; padding-inline: 32px;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -1px 0 rgba(0,0,0,0.42), 0 8px 18px rgba(0,0,0,0.35) !important;
+}
+.foundation-lead-form button:hover {
+    background-image: var(--fnd-btn-gradient-hover) !important; transform: translateY(-2px);
+}
+
+/* ------------------------------
+   12. INTRO SCREEN
+------------------------------ */
+
+.start-screen-content {
+    display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 40px;
+}
+.start-screen-content h2 {
+    margin-bottom: 20px; font-size: 2rem; font-weight: 800; color: var(--fnd-text); letter-spacing: -0.03em;
+}
+.start-screen-content p {
+    font-size: 1.05rem; line-height: 1.6; color: var(--fnd-text-muted) !important; margin-bottom: 32px;
+}
+.sections-list {
+    margin-bottom: 10px; display: flex; gap: 15px; font-size: 0.8rem;
+    font-weight: 600; color: #04ad93; text-transform: uppercase; letter-spacing: 1px;
+}
+
+/* ------------------------------
+   13. RESPONSIVE
+------------------------------ */
+
+@media (max-width: 1024px) {
+    .wizard-container { width: 100vw; height: 100vh; max-width: 100%; border-radius: 0; border: none; }
+    .wizard-cover { display: none; }
+    .wizard-title { display: flex; align-items: center; gap: 10px; }
+    .wizard-header { padding: 18px 20px 14px; }
+    .progress-container { padding: 0 20px 12px; }
+    .step-banner { padding: 18px 20px; }
+    #foundation-app-canvas { padding: 24px 20px 28px; }
+    .wizard-footer { padding: 16px 20px 20px; }
+}
+
+@media (max-width: 768px) {
+    .wizard-header { flex-direction: row; flex-wrap: wrap; align-items: center; gap: 12px; }
+    .wizard-title { font-size: 0; }
+    .wizard-title img { height: 32px; width: auto; }
+    .wizard-controls { gap: 8px; }
+    .wizard-controls .theme-toggle, .wizard-controls .close-link { padding-inline: 14px; }
+    .range-value { font-size: 2.4rem; }
+}
+
+/* ------------------------------
+   14. GRADIENT TEXT
+------------------------------ */
+
+.text-gradient {
+    background: linear-gradient(90deg, #04ad93 0%, #f5f2f0 45%, #fbccbf 65%, #e14e00 100%) !important;
+    -webkit-background-clip: text !important; background-clip: text !important;
+    color: transparent !important; -webkit-text-fill-color: transparent !important;
+    display: inline-block;
+}
+
+/* ------------------------------
+   15. GLASSMORPHIC DARK OVERRIDES
+   (Preserves your previous dark mode glass effect)
+------------------------------ */
+
+[data-theme="dark"] .wizard-container {
+    background:
+        radial-gradient(circle at 0% 0%, rgba(251,204,191,0.22), transparent 62%),
+        radial-gradient(circle at 100% 0%, rgba(30,97,103,0.32), transparent 58%),
+        radial-gradient(110% 130% at 50% 120%, rgba(255,255,255,0.04), transparent 70%),
+        #1C1D2D;
+    
+    border-radius: 32px;
+    border: 1px solid rgba(255,255,255,0.10);
+    
+    box-shadow:
+        inset 0 0 14px rgba(0,0,0,0.28),
+        inset 0 1px 0 rgba(255,255,255,0.13),
+        inset 0 -1px 0 rgba(0,0,0,0.45),
+        0 4px 14px rgba(0,0,0,0.35);
+
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+}
+
+/* Shared glass panels for Dark Mode */
+[data-theme="dark"] .wizard-main,
+[data-theme="dark"] .wizard-header,
+[data-theme="dark"] .step-banner,
+[data-theme="dark"] #foundation-app-canvas,
+[data-theme="dark"] .wizard-footer {
+    background: rgba(13,16,28,0.82);
+    border-color: rgba(148,163,184,0.4);
+    box-shadow: inset 0 0 14px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+[data-theme="dark"] .step-banner {
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+
+[data-theme="dark"] .option-card,
+[data-theme="dark"] input[type="text"],
+[data-theme="dark"] input[type="email"],
+[data-theme="dark"] select,
+[data-theme="dark"] textarea {
+    background: rgba(12,18,32,0.95);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.55);
+}
