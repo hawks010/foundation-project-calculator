@@ -6,20 +6,23 @@ Date: 2026-04-06
 
 - Harden the uploaded `v1.1.0` plugin package
 - Preserve the production `v1.0.0` plugin as the rollback reference
-- Install and test the new plugin as a separate copy on sandbox
+- Install and test the new plugin as a separate copy on sandbox and blueprint
+- Roll the approved build onto production without deleting the old plugin folder
 - Prepare the plugin in GitHub with branch history and updater support
 
 ## Environments used
 
 - Production path: `/home/u363235284/domains/inkfire.co.uk/public_html`
+- Blueprint path: `/home/u363235284/domains/inkfire.co.uk/public_html/blueprint`
 - Sandbox path: `/home/u363235284/domains/inkfire.co.uk/public_html/sandbox`
+- Blueprint QA URL: `https://blueprint.inkfire.co.uk/foundation-calculator-qa/`
 - Sandbox QA URL: `https://sandbox.inkfire.co.uk/foundation-calculator-qa/`
 
 ## Summary
 
 The plugin is materially safer than the uploaded package. Syntax checks passed, sandbox activation passed, the public builder REST read route is no longer exposed, required-field validation now exists on the server, success-state messaging is more truthful, the updater is bundled, and artifact generation works.
 
-The main unresolved blocker is external mail delivery on sandbox: SMTP2GO rejected sender domains that are not verified in that environment. The plugin now behaves more safely around placeholder sender values, but final production sign-off still needs one real browser submission and one real mail-provider delivery test with a verified sender.
+Sandbox remained limited by its mail configuration, but blueprint and production both completed controlled live submissions successfully with admin and customer email sending. The production site is now running `foundation-project-calculator-v110` as the active plugin, with the previous `foundation-project-calculator` copy still installed and inactive for rollback.
 
 ## Test results
 
@@ -43,6 +46,15 @@ The main unresolved blocker is external mail delivery on sandbox: SMTP2GO reject
 - JSON summary generation
 - ZIP package generation with expected files
 - Uninstall cleanup removes the plugin options created by this version
+- Blueprint install into `/wp-content/plugins/foundation-project-calculator-v110`
+- Blueprint controlled validation failure test
+- Blueprint controlled upload rejection test
+- Blueprint controlled success submission with `admin_sent=true` and `customer_sent=true`
+- Production install into `/wp-content/plugins/foundation-project-calculator-v110`
+- Production activation swap with rollback fallback
+- Production page render from `foundation-project-calculator-v110` assets
+- Production controlled validation failure test
+- Production controlled success submission with `admin_sent=true` and `customer_sent=true`
 
 ### Failed or blocked
 
@@ -59,16 +71,16 @@ Reason:
 - Keyboard-only journey through every step
 - Focus order and focus return after close
 - Contrast and error-state checks against live branding
-- Real upload flow with representative customer files
-- Real email delivery and attachment inspection from the production mail setup
+- Real upload flow with representative customer files through the browser UI
+- Attachment inspection from the received production admin email
 - Builder UX pass by a non-technical editor
 
 ## Recommendation
 
-Safe for staged activation and final browser-led sign-off.
+Safe to remain active on production, with final browser-led QA still recommended.
 
-Not yet safe to activate blindly on production until:
+Remaining sign-off items:
 
-- sender settings are confirmed against a verified SMTP identity
-- one real browser submission is completed
-- one real outbound email round-trip is verified
+- one manual browser walkthrough on production desktop/mobile
+- one keyboard-only accessibility pass
+- one visual inspection of the received production email attachments
