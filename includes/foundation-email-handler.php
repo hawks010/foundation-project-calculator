@@ -56,6 +56,11 @@ function foundation_process_quote() {
 	$uploaded_files = $uploaded_result['files'];
 
 	$selections = foundation_sanitize_submission_selections( $raw_selections );
+	$missing_required = foundation_validate_required_submission_fields( $steps, $selections, $uploaded_files );
+	if ( ! empty( $missing_required ) ) {
+		wp_send_json_error( array( 'message' => 'Please complete the required fields: ' . implode( ', ', $missing_required ) . '.' ), 422 );
+	}
+
 	$core_field_ids = foundation_get_core_selection_field_ids( $steps );
 	$missing_core = array();
 	foreach ( array( 'budget' => 'budget', 'timeline' => 'timeline', 'services_main' => 'service selection' ) as $key => $label ) {
@@ -88,7 +93,7 @@ function foundation_process_quote() {
 	$customer_email_content = foundation_generate_email_html( $contact, $summary, $total_price, false, $show_pricing, 0, $settings );
 
 	$headers = array( 'Content-Type: text/html; charset=UTF-8' );
-	if ( ! empty( $settings['from_name'] ) && ! empty( $settings['from_email'] ) && is_email( $settings['from_email'] ) ) {
+	if ( ! empty( $settings['from_name'] ) && ! empty( $settings['from_email'] ) && ! foundation_is_placeholder_email( $settings['from_email'] ) ) {
 		$headers[] = 'From: ' . wp_specialchars_decode( $settings['from_name'], ENT_QUOTES ) . ' <' . $settings['from_email'] . '>';
 	}
 	$headers[] = 'Reply-To: ' . wp_specialchars_decode( $contact['name'], ENT_QUOTES ) . ' <' . $contact['email'] . '>';
@@ -96,8 +101,13 @@ function foundation_process_quote() {
 		$headers[] = 'Cc: ' . $settings['cc_emails'];
 	}
 
-	$admin_to = is_email( $settings['admin_email'] ) ? $settings['admin_email'] : get_option( 'admin_email' );
-	$subject_admin = trim( $settings['admin_subject_prefix'] ) . ': ' . $contact['company'];
+	$admin_to = ( ! empty( $settings['admin_email'] ) && ! foundation_is_placeholder_email( $settings['admin_email'] ) )
+		? sanitize_email( $settings['admin_email'] )
+		: foundation_get_default_notification_email();
+	$admin_subject_prefix = trim( (string) ( $settings['admin_subject_prefix'] ?? '' ) );
+	$subject_admin = '' !== $admin_subject_prefix
+		? $admin_subject_prefix . ': ' . $contact['company']
+		: 'New project brief: ' . $contact['company'];
 
 	$admin_mail_attachments = array();
 	foreach ( $attachments as $file ) {
@@ -114,6 +124,7 @@ function foundation_process_quote() {
 	$admin_sent = wp_mail( $admin_to, $subject_admin, $admin_email_content, $headers, $admin_mail_attachments );
 
 	$customer_sent = false;
+	$customer_email_status = 'disabled';
 	if ( ! empty( $settings['customer_confirmation_enabled'] ) && is_email( $contact['email'] ) ) {
 		$customer_subject = trim( $settings['customer_subject'] );
 		if ( '' === $customer_subject ) {
@@ -125,11 +136,11 @@ function foundation_process_quote() {
 			$customer_email_content,
 			array_filter( array(
 				'Content-Type: text/html; charset=UTF-8',
-				( ! empty( $settings['from_name'] ) && ! empty( $settings['from_email'] ) && is_email( $settings['from_email'] ) ) ? 'From: ' . wp_specialchars_decode( $settings['from_name'], ENT_QUOTES ) . ' <' . $settings['from_email'] . '>' : '',
+				( ! empty( $settings['from_name'] ) && ! empty( $settings['from_email'] ) && ! foundation_is_placeholder_email( $settings['from_email'] ) ) ? 'From: ' . wp_specialchars_decode( $settings['from_name'], ENT_QUOTES ) . ' <' . $settings['from_email'] . '>' : '',
+				is_email( $admin_to ) ? 'Reply-To: ' . $admin_to : '',
 			) )
 		);
-	} elseif ( empty( $settings['customer_confirmation_enabled'] ) ) {
-		$customer_sent = false;
+		$customer_email_status = $customer_sent ? 'sent' : 'failed';
 	}
 
 	foundation_cleanup_temp_files( array( $pdf_path, $json_path, $zip_path ) );
@@ -143,6 +154,7 @@ function foundation_process_quote() {
 			'total'         => $total_price,
 			'admin_sent'    => (bool) $admin_sent,
 			'customer_sent' => (bool) $customer_sent,
+			'customer_email_status' => $customer_email_status,
 		)
 	);
 }
@@ -213,6 +225,9 @@ function foundation_build_submission_summary( $steps, $selections, $uploaded_fil
 
 			if ( 'range_slider' === $type && isset( $selections[ $field_id . '_val' ] ) ) {
 				$value = intval( $selections[ $field_id . '_val' ] );
+				$min   = intval( $field['min'] ?? 1 );
+				$max   = max( $min, intval( $field['max'] ?? $min ) );
+				$value = max( $min, min( $max, $value ) );
 				$price = floatval( $field['price_per_unit'] ?? 0 ) * $value;
 				$unit  = $field['unit'] ?? 'units';
 				$total_price += $price;

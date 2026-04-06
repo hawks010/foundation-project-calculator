@@ -22,7 +22,7 @@ class Foundation_API {
 		register_rest_route( 'foundation/v1', '/get', array(
 			'methods'             => 'GET',
 			'callback'            => array( $this, 'get_form_data' ),
-			'permission_callback' => '__return_true',
+			'permission_callback' => array( $this, 'check_permission' ),
 		) );
 	}
 

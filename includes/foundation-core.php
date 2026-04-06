@@ -7,14 +7,41 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-function foundation_get_default_settings() {
-	$admin_email = get_option( 'admin_email' );
+function foundation_is_placeholder_email( $email ) {
+	$email = is_string( $email ) ? trim( strtolower( $email ) ) : '';
+	if ( ! is_email( $email ) ) {
+		return true;
+	}
 
+	$domain = substr( strrchr( $email, '@' ), 1 );
+
+	return in_array( $domain, array( 'example.com', 'example.org', 'example.net' ), true );
+}
+
+function foundation_get_default_notification_email() {
+	$admin_email = get_option( 'admin_email' );
+	if ( ! foundation_is_placeholder_email( $admin_email ) ) {
+		return sanitize_email( $admin_email );
+	}
+
+	return 'webmaster@inkfire.co.uk';
+}
+
+function foundation_get_default_sender_email() {
+	$admin_email = get_option( 'admin_email' );
+	if ( ! foundation_is_placeholder_email( $admin_email ) ) {
+		return sanitize_email( $admin_email );
+	}
+
+	return foundation_get_default_notification_email();
+}
+
+function foundation_get_default_settings() {
 	return array(
-		'admin_email'                  => $admin_email ? $admin_email : 'webmaster@inkfire.co.uk',
+		'admin_email'                  => foundation_get_default_notification_email(),
 		'cc_emails'                    => '',
 		'from_name'                    => wp_strip_all_tags( get_bloginfo( 'name' ) ),
-		'from_email'                   => $admin_email ? $admin_email : '',
+		'from_email'                   => foundation_get_default_sender_email(),
 		'customer_confirmation_enabled'=> 1,
 		'admin_subject_prefix'         => 'New customer project brief',
 		'customer_subject'             => 'We’ve received your project brief',
@@ -37,7 +64,7 @@ function foundation_get_default_settings() {
 		'facebook_url'                 => 'https://facebook.com/inkfirelimited',
 		'instagram_url'                => 'https://www.instagram.com/inkfirelimited/',
 		'tiktok_url'                   => 'https://www.tiktok.com/@inkfirelimited',
-		'allowed_file_types'           => 'pdf,jpg,jpeg,png,webp,svg,doc,docx,xls,xlsx,ppt,pptx,zip,txt,csv',
+		'allowed_file_types'           => 'pdf,jpg,jpeg,png,webp,doc,docx,xls,xlsx,ppt,pptx,zip,txt,csv',
 		'max_file_size_mb'             => 10,
 		'max_total_upload_mb'          => 25,
 		'max_files_per_field'          => 5,
@@ -67,7 +94,10 @@ function foundation_register_default_settings() {
 		$current = array();
 	}
 
-	update_option( 'foundation_form_settings', wp_parse_args( $current, foundation_get_default_settings() ) );
+	$merged = wp_parse_args( $current, foundation_get_default_settings() );
+	if ( $merged !== $current ) {
+		update_option( 'foundation_form_settings', $merged );
+	}
 }
 
 function foundation_sanitize_settings( $input ) {
@@ -319,6 +349,51 @@ function foundation_parse_allowed_extensions( $settings ) {
 	return array_values( array_unique( array_filter( $extensions ) ) );
 }
 
+function foundation_validate_required_submission_fields( $steps, $selections, $uploaded_files ) {
+	$missing = array();
+
+	foreach ( foundation_normalize_form_data( $steps ) as $step ) {
+		foreach ( $step['fields'] as $field ) {
+			if ( empty( $field['required'] ) ) {
+				continue;
+			}
+
+			$field_id = $field['id'] ?? '';
+			$type     = $field['type'] ?? '';
+			$label    = sanitize_text_field( $field['label'] ?? 'this field' );
+			$has_value = false;
+
+			switch ( $type ) {
+				case 'service_card':
+				case 'toggle':
+					$selected = $selections[ $field_id . '_options' ] ?? array();
+					$has_value = is_array( $selected ) && ! empty( $selected );
+					break;
+				case 'range_slider':
+					$value = $selections[ $field_id . '_val' ] ?? '';
+					$has_value = '' !== (string) $value;
+					break;
+				case 'file_upload':
+					$files = $uploaded_files[ $field_id ] ?? array();
+					$has_value = is_array( $files ) && ! empty( $files );
+					break;
+				case 'text_input':
+				case 'rich_text':
+				default:
+					$value = $selections[ $field_id ] ?? '';
+					$has_value = '' !== trim( (string) $value );
+					break;
+			}
+
+			if ( ! $has_value ) {
+				$missing[] = $label;
+			}
+		}
+	}
+
+	return array_values( array_unique( array_filter( $missing ) ) );
+}
+
 function foundation_collect_uploaded_files( $settings, $steps ) {
 	if ( empty( $_FILES['uploads'] ) || ! is_array( $_FILES['uploads'] ) ) {
 		return array(
@@ -359,6 +434,10 @@ function foundation_collect_uploaded_files( $settings, $steps ) {
 		}
 
 		$field = $field_lookup[ $field_id ] ?? array();
+		if ( empty( $field ) || 'file_upload' !== ( $field['type'] ?? '' ) ) {
+			$messages[] = 'One or more upload fields are not valid for this form.';
+			continue;
+		}
 		$per_field_count = 0;
 		$per_field_max = max( 1, intval( $field['max_files'] ?? $global_max_per_field ) );
 		$per_field_max_file_size = max( 1, intval( $field['max_file_size_mb'] ?? ( $global_max_file_size / ( 1024 * 1024 ) ) ) ) * 1024 * 1024;
@@ -392,7 +471,7 @@ function foundation_collect_uploaded_files( $settings, $steps ) {
 			$filename = sanitize_file_name( (string) $name );
 			$check    = wp_check_filetype_and_ext( $tmp_name, $filename );
 			$ext      = strtolower( $check['ext'] ?? pathinfo( $filename, PATHINFO_EXTENSION ) );
-			if ( ! in_array( $ext, $allowed_extensions, true ) ) {
+			if ( empty( $ext ) || ! in_array( $ext, $allowed_extensions, true ) ) {
 				$messages[] = sprintf( '%s is not an allowed file type.', $filename );
 				continue;
 			}
@@ -527,7 +606,10 @@ function foundation_generate_pdf_attachment( $contact, $summary, $total, $settin
 	if ( ! $temp_file ) {
 		return '';
 	}
-	file_put_contents( $temp_file, $pdf );
+	if ( false === file_put_contents( $temp_file, $pdf ) ) {
+		@unlink( $temp_file );
+		return '';
+	}
 	return $temp_file;
 }
 
@@ -551,7 +633,11 @@ function foundation_generate_json_attachment( $contact, $summary, $total, $setti
 	if ( ! $temp_file ) {
 		return '';
 	}
-	file_put_contents( $temp_file, wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES ) );
+	$json = wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+	if ( empty( $json ) || false === file_put_contents( $temp_file, $json ) ) {
+		@unlink( $temp_file );
+		return '';
+	}
 	return $temp_file;
 }
 

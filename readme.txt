@@ -1,8 +1,8 @@
 === Foundation Project Calculator ===
 Contributors: Inkfire
 Tags: calculator, quote, estimate, form builder, lead capture
-Requires at least: 6.0
-Tested up to: 6.7
+Requires at least: 6.4
+Tested up to: 6.9
 Stable tag: 1.1.0
 License: GPLv2 or later
 
@@ -23,6 +23,7 @@ Key features:
 * Frontend branding controls for intro copy, imagery, success messaging, and customer CTA links.
 * Improved sanitisation and safer saved builder data.
 * Accessible frontend improvements including clearer validation, focus management, and keyboard support.
+* GitHub-based auto-updates using bundled `plugin-update-checker`.
 
 == Installation ==
 
@@ -47,6 +48,8 @@ This is useful when you want to launch the form with your own trigger using `.fo
 * Uploaded files are validated against the allowed file list in the settings page.
 * The admin email can include a PDF summary, JSON summary, and ZIP package when supported by the server.
 * The builder stores sanitised form definitions in the `foundation_form_data` option.
+* SVG is excluded from the default upload allowlist for safety.
+* Automatic updates expect tagged GitHub releases.
 
 == Changelog ==
 
@@ -56,6 +59,9 @@ This is useful when you want to launch the form with your own trigger using `.fo
 * Added sanitisation for builder saves and safer frontend rendering.
 * Added upload validation, PDF summaries, JSON exports, and optional ZIP staff package attachments.
 * Improved frontend accessibility, focus handling, and validation feedback.
+* Restricted builder REST routes to authenticated administrators.
+* Added GitHub auto-updates and safer default sender handling.
+* Added server-side required-field validation and more accurate success messaging.
 * Updated uninstall cleanup.
 
 = 1.0.0 =

@@ -78,7 +78,7 @@ class Foundation_Frontend {
 		?>
 		<?php if ( 'false' !== $atts['button'] ) : ?>
 			<div id="foundation-app-trigger-wrapper">
-				<button id="foundation-launch-btn" class="foundation-btn-primary"><?php echo esc_html( $settings['launch_button_label'] ); ?></button>
+				<button id="foundation-launch-btn" class="foundation-btn-primary" type="button"><?php echo esc_html( $settings['launch_button_label'] ); ?></button>
 			</div>
 		<?php endif; ?>
 

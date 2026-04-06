@@ -108,7 +108,7 @@ class Foundation_Settings {
 						<?php $this->text_field( 'facebook_url', __( 'Facebook URL', 'foundation-customer-form' ), $settings['facebook_url'] ); ?>
 						<?php $this->text_field( 'instagram_url', __( 'Instagram URL', 'foundation-customer-form' ), $settings['instagram_url'] ); ?>
 						<?php $this->text_field( 'tiktok_url', __( 'TikTok URL', 'foundation-customer-form' ), $settings['tiktok_url'] ); ?>
-						<?php $this->text_field( 'allowed_file_types', __( 'Allowed file types', 'foundation-customer-form' ), $settings['allowed_file_types'], 'text', 'Comma separated extensions, for example: pdf,jpg,png,docx' ); ?>
+						<?php $this->text_field( 'allowed_file_types', __( 'Allowed file types', 'foundation-customer-form' ), $settings['allowed_file_types'], 'text', 'Comma separated extensions, for example: pdf,jpg,png,docx. SVG is excluded by default for safety.' ); ?>
 						<?php $this->text_field( 'max_file_size_mb', __( 'Max file size per file (MB)', 'foundation-customer-form' ), $settings['max_file_size_mb'], 'number' ); ?>
 						<?php $this->text_field( 'max_total_upload_mb', __( 'Max total upload size (MB)', 'foundation-customer-form' ), $settings['max_total_upload_mb'], 'number' ); ?>
 						<?php $this->text_field( 'max_files_per_field', __( 'Max files per upload field', 'foundation-customer-form' ), $settings['max_files_per_field'], 'number' ); ?>

@@ -436,7 +436,7 @@ jQuery(document).ready(function($) {
             const accept = getAcceptAttribute(field);
             const describedBy = [field.helper ? helperId : '', `${field.id}_summary`].filter(Boolean).join(' ');
             html += `${getFieldHelperMarkup(field, helperId)}<input id="${escapeHtml(field.id)}" type="file" class="fnd-input fnd-file-input" data-field-id="${escapeHtml(field.id)}" data-field-type="file_upload" ${accept ? `accept="${escapeHtml(accept)}"` : ''} multiple aria-describedby="${escapeHtml(describedBy)}" ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>`;
-            html += `<div id="${escapeHtml(field.id)}_summary" data-file-summary-for="${escapeHtml(field.id)}" class="fnd-helper-text">${selectedFiles}</div>`;
+            html += `<div id="${escapeHtml(field.id)}_summary" data-file-summary-for="${escapeHtml(field.id)}" class="fnd-helper-text" aria-live="polite">${selectedFiles}</div>`;
         } else if (field.type === 'range_slider') {
             const currentVal = userSelections[`${field.id}_val`] || field.min || 1;
             html += `<div class="range-wrapper"><div class="range-value" id="${escapeHtml(field.id)}_output">${escapeHtml(currentVal)}</div><input id="${escapeHtml(field.id)}_range" type="range" class="foundation-range" data-field-id="${escapeHtml(field.id)}" min="${escapeHtml(field.min || 1)}" max="${escapeHtml(field.max || 50)}" step="${escapeHtml(field.step || 1)}" value="${escapeHtml(currentVal)}" aria-labelledby="${escapeHtml(field.id)}_label" aria-describedby="${escapeHtml(field.id)}_output"></div>`;
@@ -493,7 +493,7 @@ jQuery(document).ready(function($) {
                 <div class="foundation-contact-grid foundation-contact-grid-single">
                     <div>
                         <label for="lead-website">Website (Optional)</label>
-                        <input type="text" id="lead-website" placeholder="https://">
+                        <input type="url" id="lead-website" placeholder="https://">
                     </div>
                 </div>
                 <div style="display:none;">
@@ -600,12 +600,17 @@ jQuery(document).ready(function($) {
         return null;
     }
 
-    function renderSuccessScreen(serverTotal = null, customerSent = false) {
+    function renderSuccessScreen(serverTotal = null, customerEmailStatus = 'disabled') {
         const totalPrice = serverTotal === null ? 0 : serverTotal;
         const safeName = escapeHtml(($('#lead-name').val() || '').trim());
-        const safeMessage = customerSent
-            ? escapeHtml(branding.successMessage || 'A detailed copy of your proposal has been sent to your email.')
-            : 'Your request has been sent to our team. A customer email could not be sent this time, but we still have your brief.';
+        let safeMessage = '';
+        if (customerEmailStatus === 'sent') {
+            safeMessage = escapeHtml(branding.successMessage || 'A detailed copy of your proposal has been sent to your email.');
+        } else if (customerEmailStatus === 'failed') {
+            safeMessage = 'Your request has been sent to our team. A customer email could not be sent this time, but we still have your brief.';
+        } else {
+            safeMessage = 'Your request has been sent to our team. We will follow up with you shortly.';
+        }
 
         $('#fnd-step-banner').hide();
         $('.wizard-footer').hide();
@@ -793,7 +798,10 @@ jQuery(document).ready(function($) {
                     const message = data && data.data && data.data.message ? data.data.message : 'We could not send your request right now. Please try again in a moment.';
                     throw new Error(message);
                 }
-                renderSuccessScreen(data.data && typeof data.data.total !== 'undefined' ? data.data.total : null, !!(data.data && data.data.customer_sent));
+                renderSuccessScreen(
+                    data.data && typeof data.data.total !== 'undefined' ? data.data.total : null,
+                    data.data && data.data.customer_email_status ? String(data.data.customer_email_status) : 'disabled'
+                );
             })
             .catch((error) => {
                 $('#submission-error').text(error.message).show();
