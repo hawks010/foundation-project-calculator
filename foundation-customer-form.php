@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: Foundation Project Calculator
- * Description: A lightweight, drag-and-drop quote calculator.
- * Version: 1.0.0
+ * Description: A multi-step project calculator and lead capture tool with branded customer emails, upload packaging, and an accessible builder.
+ * Version: 1.1.0
  * Author: Inkfire
  * Text Domain: foundation-customer-form
  */
@@ -11,30 +11,37 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-// Define Constants
 define( 'FOUNDATION_PATH', plugin_dir_path( __FILE__ ) );
 define( 'FOUNDATION_URL', plugin_dir_url( __FILE__ ) );
-define( 'FOUNDATION_VERSION', '1.0.0' );
+define( 'FOUNDATION_VERSION', '1.1.0' );
 
-// 1. Load the Admin Interface
+require_once FOUNDATION_PATH . 'includes/foundation-core.php';
 require_once FOUNDATION_PATH . 'includes/class-foundation-admin.php';
-
-// 2. Load the API (Handles Saving Data)
+require_once FOUNDATION_PATH . 'includes/class-foundation-settings.php';
 require_once FOUNDATION_PATH . 'includes/class-foundation-api.php';
-
-// 3. Load the Frontend (The actual calculator)
 require_once FOUNDATION_PATH . 'includes/class-foundation-frontend.php';
-
-// 4. Load the Email Handler
 require_once FOUNDATION_PATH . 'includes/foundation-email-handler.php';
 
 /**
- * Initialize the Plugin
+ * Activation: set safe defaults.
+ */
+function foundation_activate() {
+	foundation_register_default_settings();
+	$existing = get_option( 'foundation_form_data', array() );
+	if ( empty( $existing ) || ! is_array( $existing ) ) {
+		update_option( 'foundation_form_data', foundation_normalize_form_data( array() ) );
+	}
+}
+register_activation_hook( __FILE__, 'foundation_activate' );
+
+/**
+ * Initialize the plugin.
  */
 function foundation_init() {
+	foundation_register_default_settings();
 	new Foundation_Admin();
+	new Foundation_Settings();
 	new Foundation_API();
 	new Foundation_Frontend();
 }
 add_action( 'plugins_loaded', 'foundation_init' );
-

@@ -1,14 +1,31 @@
 # Foundation Project Calculator
 
-Private Git repository for the Foundation Project Calculator WordPress plugin.
+Version: 1.1.0
 
-This repository was created from:
+A branded multi-step quote calculator and lead capture plugin for WordPress.
 
-- the currently installed production plugin on `inkfire.co.uk` as a safety snapshot
-- the uploaded `v1.1.0` package as the working release candidate
+## What is included in this build
 
-Branch intent:
+- Sanitised builder saves via the REST API
+- Dedicated settings page for admin emails, branding, uploads, and customer copy
+- Safer frontend rendering and improved validation states
+- Customer confirmation toggle
+- Upload validation for file type, file count, and file size
+- Admin email staff package attachments:
+  - PDF summary
+  - JSON summary
+  - ZIP package of uploads when supported by the server
+- Updated uninstall cleanup
 
-- `main`: finalized stable branch for the current release work
-- `backup/live-old-version`: untouched snapshot of the currently installed production plugin
-- `work/finalise-v1-1-0`: active hardening and QA branch for the uploaded update
+## Admin flow
+
+1. Build the steps in **Foundation > Project Calculator**
+2. Configure email, branding, and uploads in **Foundation > Calculator Settings**
+3. Save and test the live flow from the frontend
+4. Use `[foundation_form]` on the target page
+
+## Notes
+
+- The frontend launch button can be hidden with `[foundation_form button="false"]`
+- You can trigger the calculator with `.foundation-trigger` or a link containing `get-quote`
+- Upload packaging depends on server support for `ZipArchive`

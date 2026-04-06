@@ -1,59 +1,16 @@
 jQuery(document).ready(function($) {
+    const config = typeof foundationConfig !== 'undefined' ? foundationConfig : {};
+    const branding = config.branding || {};
+    const uploadRules = config.uploads || {};
+    const currencySymbol = branding.currencySymbol || '£';
 
-    // --------------------------------------------------
-    // 1. SETUP & STATE
-    // --------------------------------------------------
-
-    const config = (typeof foundationConfig !== 'undefined') ? foundationConfig : {};
-    let steps = [];
-
-    // Safety check: Ensure we have data to work with
-    if (config.formData) {
-        // Handle legacy single-step data vs new multi-step array
-        if (Array.isArray(config.formData) && config.formData.length > 0 && config.formData[0].hasOwnProperty('fields')) {
-            steps = config.formData;
-        } else if (Array.isArray(config.formData)) {
-            // Legacy: Convert flat fields array into a single step
-            steps = [{ id: 'step_legacy', title: 'Project Scope', fields: config.formData, is_conditional: false }];
-        }
-    }
-
-    // --- CRITICAL FIX: Sanitize Data Types ---
-    steps.forEach((step, index) => {
-        // 1. Ensure ID exists
-        if (!step.id) {
-            step.id = 'step_' + index + '_' + Date.now();
-        }
-
-        // 2. Strict Boolean Conversion for is_conditional
-        const rawCond = String(step.is_conditional).toLowerCase();
-        step.is_conditional = (rawCond === 'true' || rawCond === '1');
-
-        // 3. Ensure fields is an array
-        if (!Array.isArray(step.fields)) {
-            step.fields = [];
-        }
-    });
-
-    // Current index into the *full* steps array (not filtered)
-    let currentStep = -1; // Start at -1 for intro screen
-
-    // Stores numeric totals + extra keys like fieldId + '_options' and fieldId + '_val'
+    let steps = Array.isArray(config.formData) ? config.formData : [];
+    let currentStep = -1;
     let userSelections = {};
     let uploadedFiles = {};
-
-    // Set of step IDs that should be shown for conditional screens
     let selectedRouteIds = new Set();
-
-    // Last trigger element (for focus return)
     let lastActiveElement = null;
 
-    const getCanvas = () => $('#foundation-app-canvas');
-    const getContainer = () => $('.wizard-container');
-
-    // --------------------------------------------------
-    // 2. MOVE OVERLAY (DOM MANIPULATION)
-    // --------------------------------------------------
     const $overlay = $('#foundation-app-overlay');
     if ($overlay.length && $overlay.parent().prop('tagName') !== 'BODY') {
         $overlay.appendTo('body');
@@ -66,90 +23,162 @@ jQuery(document).ready(function($) {
         'aria-labelledby': 'foundation-wizard-title'
     });
 
-    // Helper: close overlay (used by button + Esc + success)
+    steps = steps.map((step, index) => normalizeStep(step, index));
+
+    function normalizeStep(step, index) {
+        const normalized = $.extend(true, {
+            id: `step_${index + 1}`,
+            title: `Screen ${index + 1}`,
+            subtitle: 'Fill in the details below.',
+            is_conditional: false,
+            fields: []
+        }, step || {});
+
+        normalized.is_conditional = normalizeBool(normalized.is_conditional);
+        normalized.fields = Array.isArray(normalized.fields) ? normalized.fields.map((field, fieldIndex) => normalizeField(field, fieldIndex)) : [];
+        if (!normalized.id) normalized.id = `step_${index + 1}`;
+        return normalized;
+    }
+
+    function normalizeField(field, index) {
+        const normalized = $.extend(true, {
+            id: `field_${index + 1}`,
+            type: 'text_input',
+            label: '',
+            helper: '',
+            placeholder: '',
+            required: false
+        }, field || {});
+        normalized.required = normalizeBool(normalized.required);
+        if (!normalized.id) normalized.id = `field_${index + 1}`;
+        if (normalized.type === 'service_card') {
+            normalized.options = Array.isArray(normalized.options) ? normalized.options : [];
+            normalized.variant = normalized.variant || 'services';
+        }
+        return normalized;
+    }
+
+    function normalizeBool(value) {
+        if (typeof value === 'boolean') return value;
+        const raw = String(value || '').toLowerCase();
+        return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+    }
+
+    function escapeHtml(str) {
+        if (str === null || typeof str === 'undefined') return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function getCanvas() {
+        return $('#foundation-app-canvas');
+    }
+
+    function getContainer() {
+        return $('.wizard-container');
+    }
+
+    function getTriggerLabel() {
+        return branding.launchButtonLabel || 'Get a Quote';
+    }
+
+    function getWizardTitle() {
+        return branding.wizardTitle || 'Inkfire Project Calculator';
+    }
+
+    function openOverlay() {
+        lastActiveElement = document.activeElement;
+        currentStep = -1;
+        userSelections = {};
+        uploadedFiles = {};
+        selectedRouteIds = new Set();
+        buildWizardLayout();
+        $overlay.css({ display: 'flex', visibility: 'visible', opacity: '0' });
+        $('body').css('overflow', 'hidden');
+        window.setTimeout(() => {
+            $overlay.addClass('is-active').css('opacity', '1');
+            $('#foundation-close-btn').trigger('focus');
+        }, 20);
+        renderStartScreen();
+    }
+
     function closeOverlay() {
         $overlay.removeClass('is-active').css('opacity', '0');
-        setTimeout(() => {
+        window.setTimeout(() => {
             $overlay.css('display', 'none');
             $('body').css('overflow', '');
             if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
                 lastActiveElement.focus();
             }
-        }, 300);
+        }, 250);
     }
 
-    // --------------------------------------------------
-    // 3. BUILD LAYOUT
-    // --------------------------------------------------
     function buildWizardLayout() {
+        const logo = branding.logoUrl ? `<img src="${escapeHtml(branding.logoUrl)}" alt="Brand logo" style="width:auto;height:60px;object-fit:contain;">` : '';
         const html = `
             <div class="wizard-container">
                 <div class="wizard-cover" id="fnd-wizard-cover">
-                    <div class="cover-content" id="fnd-cover-content">
-                        <!-- Content Injected via JS -->
-                    </div>
+                    <div class="cover-content" id="fnd-cover-content"></div>
                 </div>
-
                 <div class="wizard-main">
                     <div class="wizard-header">
-                        <div class="wizard-title" id="foundation-wizard-title" style="display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 700;">
-                            <img src="https://inkfire.co.uk/wp-content/uploads/2025/08/cropped-IMG_1089.png"
-                                 alt="Inkfire Icon" style="width: auto; height: 60px; object-fit: contain;">
-                            Inkfire Project Calculator
+                        <div class="wizard-title" id="foundation-wizard-title" style="display:flex;align-items:center;gap:10px;font-size:1rem;font-weight:700;">
+                            ${logo}
+                            <span>${escapeHtml(getWizardTitle())}</span>
                         </div>
-
                         <div class="wizard-controls">
                             <button class="theme-toggle" id="fnd-theme-toggle" type="button" aria-pressed="false">Light mode</button>
                             <button class="close-link" id="foundation-close-btn" type="button">Close</button>
                         </div>
                     </div>
-
                     <div class="progress-container" id="fnd-progress-bar" style="display:none;"></div>
-
                     <div class="step-banner" id="fnd-step-banner" style="display:none;" aria-live="polite"></div>
-                    <p id="foundation-step-error" role="alert" style="display:none; color:#ff4757; text-align:center; margin:10px 0 0; font-weight:700;"></p>
-
+                    <p id="foundation-step-error" role="alert" style="display:none;color:#c62828;text-align:center;margin:10px 0 0;font-weight:700;"></p>
                     <div class="wizard-card">
                         <div id="foundation-app-canvas"></div>
                     </div>
-
                     <div class="wizard-footer" style="display:none;">
                         <button id="btn-prev" type="button">← Back</button>
                         <button id="btn-next" type="button">Next Step →</button>
                     </div>
                 </div>
-            </div>
-        `;
+            </div>`;
         $overlay.html(html);
-        updateCoverContent('intro'); // Set default content
+        updateCoverContent('intro');
     }
 
-    // Helper to switch Cover Content & Position
     function updateCoverContent(type) {
         const $cover = $('#fnd-wizard-cover');
         const $content = $('#fnd-cover-content');
+        const introImage = branding.introImageUrl || '';
+        const testimonialImage = branding.testimonialImageUrl || '';
 
-        if (type === 'intro') {
-            $cover.css('background-image', "url('https://inkfire.co.uk/wp-content/uploads/2025/12/250515_SCOPE-AWARDS_02_0489.jpg')");
-            $cover.css('background-position', 'center');
+        if (type === 'testimonial') {
+            if (testimonialImage) {
+                $cover.css('background-image', `url('${testimonialImage.replace(/'/g, "\\'")}')`);
+                $cover.css('background-position', 'top center');
+            }
             $content.html(`
-                <h1 class="text-gradient">Why choose Inkfire?</h1>
-                <p>We’re a disabled-led team of 15+ with lived experience at the heart of everything we do. Our specialists bring decades of combined expertise across IT, web, creative and accessibility — delivering solutions that genuinely work for real people.</p>
+                <h1 class="text-gradient">${escapeHtml(branding.testimonialHeading || 'Why Our Clients Love Inkfire')}</h1>
+                <p style="font-style:italic;font-size:17px;margin-bottom:20px;">${escapeHtml(branding.testimonialQuote || '')}</p>
+                <p style="font-weight:bold;margin-top:0;">${escapeHtml(branding.testimonialAttribution || '')}</p>
             `);
-        } else if (type === 'testimonial') {
-            $cover.css('background-image', "url('https://inkfire.co.uk/wp-content/uploads/2025/12/Screenshot-2025-12-01-at-22.00.39.png')");
-            $cover.css('background-position', 'top center');
-            $content.html(`
-                <h1 class="text-gradient">Why Our Clients Love Inkfire</h1>
-                <p style="font-style:italic; font-size:17px; margin-bottom:20px;">“I'm SO grateful for all that you do. I absolutely love my websites, and working with Imali and the team has been such a gift. A special shout-out to Sonny — he’s always so helpful, efficient, and nothing is ever too much trouble. YAY for Sonny!”</p>
-                <p style="font-weight:bold; margin-top:0;">Cat Lawless — catlawless.com</p>
-            `);
+            return;
         }
-    }
 
-    // --------------------------------------------------
-    // CONDITIONAL STEP HELPERS
-    // --------------------------------------------------
+        if (introImage) {
+            $cover.css('background-image', `url('${introImage.replace(/'/g, "\\'")}')`);
+            $cover.css('background-position', 'center');
+        }
+        $content.html(`
+            <h1 class="text-gradient">${escapeHtml(branding.introHeading || 'Why choose us?')}</h1>
+            <p>${escapeHtml(branding.introText || '')}</p>
+        `);
+    }
 
     function shouldShowStep(step) {
         if (!step) return false;
@@ -159,39 +188,33 @@ jQuery(document).ready(function($) {
 
     function getVisibleStepIndexes() {
         const indexes = [];
-        steps.forEach((step, idx) => {
-            if (shouldShowStep(step)) {
-                indexes.push(idx);
-            }
+        steps.forEach((step, index) => {
+            if (shouldShowStep(step)) indexes.push(index);
         });
         return indexes;
     }
 
     function getNextStepIndex(fromIndex) {
         for (let i = fromIndex + 1; i < steps.length; i++) {
-            if (shouldShowStep(steps[i])) {
-                return i;
-            }
+            if (shouldShowStep(steps[i])) return i;
         }
-        return steps.length; // go to contact form
+        return steps.length;
     }
 
     function getPrevStepIndex(fromIndex) {
         for (let i = fromIndex - 1; i >= 0; i--) {
-            if (shouldShowStep(steps[i])) {
-                return i;
-            }
+            if (shouldShowStep(steps[i])) return i;
         }
-        return -1; // intro
+        return -1;
     }
 
     function isFieldRequired(field) {
-        const rawRequired = String(field && field.required ? field.required : '').toLowerCase();
-        const label = String(field && field.label ? field.label : '').toLowerCase();
-        if (label.includes('(optional)')) {
-            return false;
-        }
-        return rawRequired === 'true' || rawRequired === '1' || rawRequired === 'yes';
+        return normalizeBool(field && field.required);
+    }
+
+    function getFieldValue(fieldId) {
+        if (!fieldId || typeof userSelections[fieldId] === 'undefined' || userSelections[fieldId] === null) return '';
+        return String(userSelections[fieldId]).trim();
     }
 
     function clearStepError() {
@@ -202,342 +225,136 @@ jQuery(document).ready(function($) {
         $('#foundation-step-error').text(message).show();
     }
 
-    function getFieldValue(fieldId) {
-        if (!fieldId || typeof userSelections[fieldId] === 'undefined' || userSelections[fieldId] === null) {
-            return '';
+    function getCoreFieldIds() {
+        const ids = { budget: '', timeline: '', services_main: '' };
+        steps.forEach((step) => {
+            step.fields.forEach((field) => {
+                if (field.type !== 'service_card') return;
+                const role = field.role || '';
+                const variant = field.variant || '';
+                if (!ids.budget && (role === 'budget' || variant === 'budget')) ids.budget = field.id;
+                if (!ids.timeline && (role === 'timeline' || variant === 'timeline')) ids.timeline = field.id;
+                if (!ids.services_main && (role === 'services_main' || variant === 'services')) ids.services_main = field.id;
+            });
+        });
+        return ids;
+    }
+
+    function validateCoreSelections() {
+        const ids = getCoreFieldIds();
+        const checks = [
+            { key: 'budget', label: 'budget' },
+            { key: 'timeline', label: 'timeline' },
+            { key: 'services_main', label: 'service selection' }
+        ];
+        const missing = checks.filter((check) => {
+            if (!ids[check.key]) return false;
+            const selected = userSelections[`${ids[check.key]}_options`] || [];
+            return !Array.isArray(selected) || selected.length === 0;
+        }).map((check) => check.label);
+
+        if (missing.length) {
+            setStepError(`Please complete your ${missing.join(', ')} before requesting a quote.`);
+            return false;
         }
-        return String(userSelections[fieldId]).trim();
+        return true;
+    }
+
+    function focusTrap(event) {
+        if (!$overlay.hasClass('is-active') || event.key !== 'Tab') return;
+        const focusable = $overlay.find('a, button, input, textarea, select, [tabindex]:not([tabindex="-1"])').filter(':visible');
+        if (!focusable.length) return;
+        const first = focusable.get(0);
+        const last = focusable.get(focusable.length - 1);
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     }
 
     function validateCurrentStep() {
-        if (currentStep < 0 || currentStep >= steps.length) {
-            return true;
-        }
-
+        if (currentStep < 0 || currentStep >= steps.length) return true;
         const step = steps[currentStep];
-        if (!step || !Array.isArray(step.fields)) {
-            return true;
-        }
+        if (!step || !Array.isArray(step.fields)) return true;
 
         clearStepError();
 
         for (const field of step.fields) {
-            if (!field || !field.id) {
-                continue;
-            }
-
-            const required = isFieldRequired(field);
-            if (!required) {
-                continue;
-            }
-
-            const fieldType = field.type;
+            if (!field || !field.id || !isFieldRequired(field)) continue;
+            const type = field.type;
             let valid = true;
-            let focusSelector = null;
+            let focusTarget = null;
 
-            if (fieldType === 'service_card' || fieldType === 'toggle') {
-                const selected = userSelections[field.id + '_options'] || [];
+            if (type === 'service_card' || type === 'toggle') {
+                const selected = userSelections[`${field.id}_options`] || [];
                 valid = Array.isArray(selected) && selected.length > 0;
-                focusSelector = `.options-grid[data-field-id="${field.id}"] .option-card`;
-            } else if (fieldType === 'range_slider') {
-                valid = !!userSelections[field.id + '_val'];
-                focusSelector = `.foundation-range[data-field-id="${field.id}"]`;
-            } else if (fieldType === 'text_input' || fieldType === 'rich_text') {
+                focusTarget = $(`[data-field-id="${field.id}"]`).find('.option-card').first();
+            } else if (type === 'range_slider') {
+                valid = !!userSelections[`${field.id}_val`];
+                focusTarget = $(`#${field.id}_range`);
+            } else if (type === 'text_input' || type === 'rich_text') {
                 valid = getFieldValue(field.id) !== '';
-                focusSelector = `.fnd-input[data-field-id="${field.id}"]`;
-            } else if (fieldType === 'file_upload') {
-                const files = uploadedFiles[field.id] || [];
-                valid = Array.isArray(files) && files.length > 0;
-                focusSelector = `.fnd-input[data-field-id="${field.id}"]`;
+                focusTarget = $(`#${field.id}`);
+                focusTarget.attr('aria-invalid', valid ? 'false' : 'true');
+            } else if (type === 'file_upload') {
+                const selectedFiles = uploadedFiles[field.id] || [];
+                valid = Array.isArray(selectedFiles) && selectedFiles.length > 0;
+                focusTarget = $(`#${field.id}`);
+                focusTarget.attr('aria-invalid', valid ? 'false' : 'true');
             }
 
             if (!valid) {
-                setStepError(`Please complete "${field.label || 'this step'}" before continuing.`);
-                const $target = getCanvas().find(focusSelector).filter(':visible').first();
-                if ($target.length) {
-                    $target.trigger('focus');
-                }
+                setStepError(`Please complete “${field.label || 'this field'}” before continuing.`);
+                if (focusTarget && focusTarget.length) focusTarget.trigger('focus');
                 return false;
             }
         }
-
         return true;
     }
 
-    function validateCoreSelections() {
-        const requirements = [
-            { key: 'field_budget_options', message: 'Please choose a budget range before requesting a quote.', stepField: 'field_budget' },
-            { key: 'field_timeline_options', message: 'Please choose a starting timeline before requesting a quote.', stepField: 'field_timeline' },
-            { key: 'field_services_main_options', message: 'Please choose at least one service before requesting a quote.', stepField: 'field_services_main' }
-        ];
-
-        for (const requirement of requirements) {
-            const selected = userSelections[requirement.key] || [];
-            if (!Array.isArray(selected) || selected.length === 0) {
-                const targetIndex = steps.findIndex((step) => Array.isArray(step.fields) && step.fields.some((field) => field.id === requirement.stepField));
-                if (targetIndex >= 0) {
-                    renderStep(targetIndex);
-                    window.setTimeout(function () {
-                        setStepError(requirement.message);
-                    }, 50);
-                } else {
-                    setStepError(requirement.message);
-                }
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    // --------------------------------------------------
-    // 4. OPEN APP TRIGGER
-    // --------------------------------------------------
-    document.addEventListener('click', function(e) {
-        const link = e.target.closest('a');
-        const triggerClass = e.target.closest('.foundation-trigger');
-        const triggerId = e.target.closest('#foundation-launch-btn');
-
-        let isLinkMatch = false;
-        if (link) {
-            const href = link.getAttribute('href') || '';
-            if (href.includes('foundation-form') || href.includes('get-quote')) {
-                isLinkMatch = true;
-            }
-        }
-
-        if (isLinkMatch || triggerClass || triggerId) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            lastActiveElement = document.activeElement;
-
-            buildWizardLayout();
-
-            $overlay.css({
-                'display': 'flex',
-                'visibility': 'visible',
-                'opacity': '0',
-                'z-index': '2147483647',
-                'position': 'fixed',
-                'top': '0',
-                'left': '0',
-                'width': '100%',
-                'height': '100%'
-            });
-
-            setTimeout(() => {
-                $overlay.addClass('is-active').css('opacity', '1');
-                // Move focus to close button initially (visible on all screens)
-                $('#foundation-close-btn').trigger('focus');
-            }, 50);
-
-            $('body').css('overflow', 'hidden');
-
-            renderStartScreen();
-        }
-    }, true);
-
-    // --------------------------------------------------
-    // 5. EVENT DELEGATION
-    // --------------------------------------------------
-    $(document).on('click', '#foundation-close-btn', function(e) {
-        e.preventDefault();
-        closeOverlay();
-    });
-
-    // Esc key to close when overlay is open
-    $(document).on('keydown', function(e) {
-        if (e.key === 'Escape' && $overlay.hasClass('is-active')) {
-            e.preventDefault();
-            closeOverlay();
-        }
-    });
-
-    $(document).on('click', '#fnd-theme-toggle', function() {
-        const current = $overlay.attr('data-theme');
-        const newTheme = current === 'dark' ? 'light' : 'dark';
-        $overlay.attr('data-theme', newTheme);
-        $(this)
-            .text(newTheme === 'dark' ? 'Light mode' : 'Dark mode')
-            .attr('aria-pressed', newTheme === 'dark' ? 'false' : 'true');
-    });
-
-    // NEXT / PREV using conditional routing
-    $(document).on('click', '#btn-next', () => {
-        if (!validateCurrentStep()) {
-            return;
-        }
-        const nextIndex = getNextStepIndex(currentStep);
-        if (nextIndex >= steps.length && !validateCoreSelections()) {
-            return;
-        }
-        renderStep(nextIndex);
-    });
-
-    $(document).on('click', '#btn-prev', () => {
-        const prevIndex = getPrevStepIndex(currentStep);
-        if (prevIndex === -1) {
-            renderStartScreen();
-        } else {
-            renderStep(prevIndex);
-        }
-    });
-
-    // Option card click: supports multi-select for "services" cards
-    $(document).on('click', '.option-card', function() {
-        const $card = $(this);
-        const $grid = $card.closest('.options-grid');
-
-        const fieldId = $grid.data('fieldId') || $card.data('fieldId');
-        const multi = ($grid.data('multi') === true || $grid.data('multi') === 'true');
-        const optionIndex = parseInt($card.data('optionIndex'), 10) || 0;
-        const price = parseFloat($card.data('price')) || 0;
-        const routeStepId = $card.data('routeStepId') || '';
-
-        const selectionKey = fieldId + '_options';
-        let selected = userSelections[selectionKey] || [];
-
-        if (multi) {
-            if ($card.hasClass('selected')) {
-                $card.removeClass('selected').attr('aria-pressed', 'false');
-                selected = selected.filter(i => i !== optionIndex);
-                if (routeStepId) selectedRouteIds.delete(routeStepId);
-            } else {
-                $card.addClass('selected').attr('aria-pressed', 'true');
-                if (!selected.includes(optionIndex)) {
-                    selected.push(optionIndex);
-                }
-                if (routeStepId) selectedRouteIds.add(routeStepId);
-            }
-        } else {
-            // Single-select: clear others in this grid
-            $grid.find('.option-card').each(function() {
-                const $c = $(this);
-                $c.removeClass('selected').attr('aria-pressed', 'false');
-                const rid = $c.data('routeStepId');
-                if (rid) selectedRouteIds.delete(rid);
-            });
-
-            selected = [optionIndex];
-            $card.addClass('selected').attr('aria-pressed', 'true');
-            if (routeStepId) selectedRouteIds.add(routeStepId);
-        }
-
-        userSelections[selectionKey] = selected;
-
-        // Recalculate numeric price total for this field
-        let total = 0;
-        selected.forEach(idx => {
-            const $optCard = $grid.find(`.option-card[data-option-index="${idx}"]`);
-            const optPrice = parseFloat($optCard.data('price')) || 0;
-            total += optPrice;
-        });
-        userSelections[fieldId] = total;
-    });
-
-    // Keyboard activation for option cards
-    $(document).on('keydown', '.option-card', function(e) {
-        if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            $(this).click();
-        }
-    });
-
-    // Range Slider Logic
-    $(document).on('input', '.foundation-range', function() {
-        const val = $(this).val();
-        $(this).parent().find('.range-value').text(val);
-        const fieldId = $(this).data('field-id');
-        userSelections[fieldId + '_val'] = val;
-        clearStepError();
-    });
-
-    $(document).on('input change', '.fnd-input[data-field-id]', function() {
-        const $field = $(this);
-        const fieldId = $field.data('field-id');
-        const fieldType = $field.data('field-type');
-
-        if (!fieldId) {
-            return;
-        }
-
-        if (fieldType === 'file_upload') {
-            const files = Array.from(this.files || []);
-            uploadedFiles[fieldId] = files;
-            userSelections[fieldId] = files.map((file) => file.name).join(', ');
-
-            const $summary = getCanvas().find(`[data-file-summary-for="${fieldId}"]`).first();
-            if ($summary.length) {
-                $summary.text(files.length ? files.map((file) => file.name).join(', ') : 'No files selected yet.');
-            }
-        } else {
-            userSelections[fieldId] = $field.val();
-        }
-
-        clearStepError();
-    });
-
-    // --------------------------------------------------
-    // 6. RENDERERS
-    // --------------------------------------------------
-
-    function escapeHtml(str) {
-        if (!str && str !== 0) return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;');
-    }
-
-    function focusFirstInteractive() {
-        const $canvas = getCanvas();
-        const $first = $canvas.find('input, textarea, select, .option-card, button').filter(':visible').first();
-
-        if ($first.length) {
-            if ($first.hasClass('option-card')) {
-                if (!$first.attr('tabindex')) {
-                    $first.attr('tabindex', '0');
-                }
-                $first.focus();
-            } else {
-                $first.focus();
-            }
-        }
-    }
-
-    // 6.1 Intro Screen
     function renderStartScreen() {
         currentStep = -1;
         getContainer().removeClass('full-width-mode');
-
         updateCoverContent('intro');
-
         $('#fnd-progress-bar, #fnd-step-banner, .wizard-footer').hide();
+        clearStepError();
 
-        const $canvas = getCanvas();
-        $canvas.html(`
+        getCanvas().html(`
             <div class="start-screen-content">
-                <div class="sections-list">
-                    <span>Brief</span> • <span>Plan</span> • <span>Quote</span>
-                </div>
+                <div class="sections-list"><span>Brief</span> • <span>Plan</span> • <span>Quote</span></div>
                 <h2>Your next project starts here.</h2>
-                <p style="color: var(--fnd-text-muted);">Build your project step by step. Our interactive calculator helps you choose what you need and see transparent pricing as you go.</p>
-                <button id="foundation-start-btn" type="button" style="background:var(--fnd-primary); color:var(--fnd-primary-fg); border:none; padding:16px 40px; border-radius:50px; font-weight:800; font-size:18px; cursor:pointer; width: fit-content;">Let's Begin</button>
+                <p style="color:var(--fnd-text-muted);">Build your project step by step. Our interactive calculator helps you choose what you need and see transparent pricing as you go.</p>
+                <button id="foundation-start-btn" type="button" class="foundation-primary-pill">Let's Begin</button>
             </div>
-        `).hide().fadeIn(300, () => {
-            $('#foundation-start-btn').trigger('focus');
-        });
-
-        $('#foundation-start-btn').on('click', function() {
-            const firstIndex = getNextStepIndex(-1);
-            renderStep(firstIndex);
-        });
+        `).hide().fadeIn(250, () => $('#foundation-start-btn').trigger('focus'));
     }
 
-    // 6.2 Dynamic Step
+    function renderProgressBar(index) {
+        const visible = getVisibleStepIndexes();
+        const currentPos = visible.indexOf(index);
+        const totalSegments = visible.length + 1;
+        let html = '';
+        for (let i = 0; i < totalSegments; i++) {
+            html += `<div class="progress-segment ${currentPos >= 0 && i <= currentPos ? 'active' : ''}"></div>`;
+        }
+        $('#fnd-progress-bar').html(html);
+    }
+
+    function renderBanner(step, index) {
+        $('#fnd-step-banner').html(`
+            <h2>${escapeHtml(step.title || `Step ${index + 1}`)}</h2>
+            <p style="margin:0 auto;">${escapeHtml(step.subtitle || 'Fill in the details below.')}</p>
+        `).show();
+    }
+
+    function focusFirstInteractive() {
+        const $first = getCanvas().find('button, input, textarea, select').filter(':visible').first();
+        if ($first.length) $first.trigger('focus');
+    }
+
     function renderStep(index) {
         currentStep = index;
         clearStepError();
@@ -547,375 +364,440 @@ jQuery(document).ready(function($) {
             return;
         }
 
-        getContainer().addClass('full-width-mode');
-
-        $('#fnd-progress-bar, #fnd-step-banner, .wizard-footer').show();
-
-        if (steps.length === 0) {
-            getCanvas().html('<div style="text-align:center; padding:40px;"><h2>No steps configured</h2><p>Please configure the wizard in WP Admin.</p></div>');
+        if (!steps[index]) {
+            getCanvas().html('<div style="text-align:center;padding:40px;"><h2>No steps configured</h2><p>Please configure the wizard in WordPress admin.</p></div>');
             return;
         }
 
-        const step = steps[index];
+        getContainer().addClass('full-width-mode');
+        $('#fnd-progress-bar, #fnd-step-banner, .wizard-footer').show();
         renderProgressBar(index);
-        renderBanner(step, index);
+        renderBanner(steps[index], index);
 
-        let html = '';
-        if (step.fields && Array.isArray(step.fields) && step.fields.length > 0) {
-            html += `<div class="step-container">`;
-            step.fields.forEach(field => {
+        let html = '<div class="step-container">';
+        if (steps[index].fields && steps[index].fields.length) {
+            steps[index].fields.forEach((field) => {
                 html += renderField(field);
             });
-            html += `</div>`;
         } else {
-            html += `<p style="text-align:center; color:var(--fnd-text-muted);">(This step has no fields)</p>`;
+            html += '<p style="text-align:center;color:var(--fnd-text-muted);">(This step has no fields)</p>';
         }
+        html += '</div>';
 
-        getCanvas().html(html).hide().fadeIn(300, () => {
-            focusFirstInteractive();
-        });
-        updateButtons();
+        getCanvas().html(html).hide().fadeIn(250, focusFirstInteractive);
+        $('.wizard-footer').show();
+        $('#btn-next').text('Next Step →');
     }
 
-    // 6.3 Progress Bar
-    function renderProgressBar(currentIndex) {
-        const $bar = $('#fnd-progress-bar');
-        const visibleIndexes = getVisibleStepIndexes();
-        const currentPos = visibleIndexes.indexOf(currentIndex);
-        const totalSegments = visibleIndexes.length + 1; // +1 for contact step
-
-        let html = '';
-        for (let i = 0; i < totalSegments; i++) {
-            const activeClass = (currentPos >= 0 && i <= currentPos) ? 'active' : '';
-            html += `<div class="progress-segment ${activeClass}"></div>`;
-        }
-        $bar.html(html);
+    function getFieldHelperMarkup(field, helperId) {
+        if (!field.helper) return '';
+        return `<div id="${helperId}" class="fnd-helper-text">${escapeHtml(field.helper)}</div>`;
     }
 
-    // 6.4 Title Banner
-    function renderBanner(step, index) {
-        const title = step.title || `Step ${index + 1}`;
-        const desc = step.subtitle || 'Fill in the details below.';
-        $('#fnd-step-banner')
-            .html(`<h2>${escapeHtml(title)}</h2><p style="margin: 0 auto;">${escapeHtml(desc)}</p>`)
-            .show();
-    }
-
-    // 6.5 Field Renderer (CRASH PROOF)
     function renderField(field) {
         if (!field || !field.type) return '';
-
-        let html = `<div class="field-wrapper">`;
-        if (field.label) html += `<h4>${escapeHtml(field.label)}</h4>`;
+        const requiredMark = isFieldRequired(field) ? ' <span aria-hidden="true" style="color:#c62828;">*</span>' : '';
+        const helperId = `${field.id}_helper`;
+        let html = `<div class="field-wrapper" data-field-wrapper="${escapeHtml(field.id)}">`;
+        if (field.label && !['section_title', 'description', 'divider'].includes(field.type)) {
+            html += `<h4 id="${escapeHtml(field.id)}_label">${escapeHtml(field.label)}${requiredMark}</h4>`;
+        }
 
         if (field.type === 'service_card') {
-            const selectionKey = field.id + '_options';
-            const selected = userSelections[selectionKey] || [];
-            const isMulti = (!field.variant || field.variant === 'services');
-
-            html += `<div class="options-grid" data-field-id="${field.id}" data-multi="${isMulti ? 'true' : 'false'}">`;
-            if (field.options && Array.isArray(field.options)) {
-                field.options.forEach((opt, idx) => {
-                    const isSelected = selected.includes(idx);
-                    const price = opt.price || 0;
-                    html += `
-                        <div class="option-card ${isSelected ? 'selected' : ''}"
-                             data-field-id="${field.id}"
-                             data-option-index="${idx}"
-                             data-price="${price}"
-                             data-route-step-id="${opt.route_step_id || ''}"
-                             role="button"
-                             tabindex="0"
-                             aria-pressed="${isSelected ? 'true' : 'false'}">
-                            <h4>${escapeHtml(opt.label || 'Option')}</h4>
-                            ${price > 0 ? `<div class="price">+£${price}</div>` : ''}
-                        </div>`;
-                });
-            }
-            html += `</div>`;
-        }
-        else if (field.type === 'text_input') {
-            const currentValue = escapeHtml(getFieldValue(field.id));
-            html += `<input type="text" data-field-id="${field.id}" data-field-type="text_input" value="${currentValue}" placeholder="${escapeHtml(field.placeholder || 'Type here...')}" class="fnd-input" aria-label="${escapeHtml(field.label || field.placeholder || 'Text input')}" ${isFieldRequired(field) ? 'aria-required="true"' : ''}>`;
-        }
-        else if (field.type === 'rich_text') {
-            const currentValue = escapeHtml(getFieldValue(field.id));
-            html += `<textarea class="fnd-input" data-field-id="${field.id}" data-field-type="rich_text" rows="6" placeholder="${escapeHtml(field.placeholder || 'Type details here...')}" aria-label="${escapeHtml(field.label || 'Details')}" ${isFieldRequired(field) ? 'aria-required="true"' : ''}>${currentValue}</textarea>`;
-            if (field.helper) html += `<div style="font-size:13px; color:var(--fnd-text-muted); margin-top:6px;">${escapeHtml(field.helper)}</div>`;
-        }
-        else if (field.type === 'file_upload') {
+            const selectionKey = `${field.id}_options`;
+            const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey] : [];
+            const isMulti = !field.variant || field.variant === 'services';
+            html += `<fieldset class="fnd-fieldset"><legend class="screen-reader-text">${escapeHtml(field.label || 'Options')}</legend>${getFieldHelperMarkup(field, helperId)}<div class="options-grid" data-field-id="${escapeHtml(field.id)}" data-multi="${isMulti ? 'true' : 'false'}">`;
+            (field.options || []).forEach((opt, idx) => {
+                const isSelected = selected.includes(idx) || selected.includes(String(idx));
+                const price = parseFloat(opt.price || 0);
+                html += `
+                    <button type="button" class="option-card ${isSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="${idx}" data-price="${price}" data-route-step-id="${escapeHtml(opt.route_step_id || '')}" aria-pressed="${isSelected ? 'true' : 'false'}" ${field.helper ? `aria-describedby="${helperId}"` : ''}>
+                        <h4>${escapeHtml(opt.label || 'Option')}</h4>
+                        ${price > 0 ? `<div class="price">+${escapeHtml(currencySymbol)}${price}</div>` : ''}
+                    </button>`;
+            });
+            html += '</div></fieldset>';
+        } else if (field.type === 'toggle') {
+            const selectionKey = `${field.id}_options`;
+            const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey] : [];
+            const yesSelected = selected.includes(0) || selected.includes('0');
+            const noSelected = selected.includes(1) || selected.includes('1');
+            html += `<fieldset class="fnd-fieldset"><legend class="screen-reader-text">${escapeHtml(field.label || 'Yes or no')}</legend><div class="options-grid options-grid-toggle" data-field-id="${escapeHtml(field.id)}" data-multi="false">`;
+            html += `<button type="button" class="option-card ${yesSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="0" data-price="${parseFloat(field.price || 0)}" aria-pressed="${yesSelected ? 'true' : 'false'}"><h4>${escapeHtml(field.yes_label || 'Yes')}</h4></button>`;
+            html += `<button type="button" class="option-card ${noSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="1" data-price="0" aria-pressed="${noSelected ? 'true' : 'false'}"><h4>${escapeHtml(field.no_label || 'No')}</h4></button>`;
+            html += '</div></fieldset>';
+        } else if (field.type === 'text_input') {
+            html += `${getFieldHelperMarkup(field, helperId)}<input id="${escapeHtml(field.id)}" type="text" class="fnd-input" data-field-id="${escapeHtml(field.id)}" data-field-type="text_input" value="${escapeHtml(getFieldValue(field.id))}" placeholder="${escapeHtml(field.placeholder || 'Type here...')}" ${field.helper ? `aria-describedby="${helperId}"` : ''} ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>`;
+        } else if (field.type === 'rich_text') {
+            html += `${getFieldHelperMarkup(field, helperId)}<textarea id="${escapeHtml(field.id)}" class="fnd-input" data-field-id="${escapeHtml(field.id)}" data-field-type="rich_text" rows="6" placeholder="${escapeHtml(field.placeholder || 'Type details here...')}" ${field.helper ? `aria-describedby="${helperId}"` : ''} ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>${escapeHtml(getFieldValue(field.id))}</textarea>`;
+        } else if (field.type === 'file_upload') {
             const selectedFiles = escapeHtml(getFieldValue(field.id) || 'No files selected yet.');
-            html += `<input type="file" data-field-id="${field.id}" data-field-type="file_upload" class="fnd-input" multiple style="padding:10px;" aria-label="${escapeHtml(field.label || 'File upload')}" ${isFieldRequired(field) ? 'aria-required="true"' : ''}>`;
-            html += `<div data-file-summary-for="${field.id}" style="font-size:13px; color:var(--fnd-text-muted); margin-top:6px;">${selectedFiles}</div>`;
-            if (field.helper) html += `<div style="font-size:13px; color:var(--fnd-text-muted); margin-top:6px;">${escapeHtml(field.helper)}</div>`;
-        }
-        else if (field.type === 'toggle') {
-            const selectionKey = field.id + '_options';
-            const selected = userSelections[selectionKey] || [];
-            const yesSelected = selected.includes(0);
-            const noSelected = selected.includes(1);
-
-            const yesLabel = field.yes_label || 'Yes';
-            const noLabel = field.no_label || 'No';
-            const yesPrice = field.price || 0;
-
-            html += `
-                <div class="options-grid" data-field-id="${field.id}" data-multi="false" style="grid-template-columns:1fr 1fr; max-width:300px;">
-                    <div class="option-card ${yesSelected ? 'selected' : ''}"
-                         data-field-id="${field.id}"
-                         data-option-index="0"
-                         data-price="${yesPrice}"
-                         role="button"
-                         tabindex="0"
-                         aria-pressed="${yesSelected ? 'true' : 'false'}">
-                        <h4>${escapeHtml(yesLabel)}</h4>
-                    </div>
-                    <div class="option-card ${noSelected ? 'selected' : ''}"
-                         data-field-id="${field.id}"
-                         data-option-index="1"
-                         data-price="0"
-                         role="button"
-                         tabindex="0"
-                         aria-pressed="${noSelected ? 'true' : 'false'}">
-                        <h4>${escapeHtml(noLabel)}</h4>
-                    </div>
-                </div>`;
-        }
-        else if (field.type === 'range_slider') {
-            const currentVal = userSelections[field.id + '_val'] || field.min || 1;
-            html += `
-                <div class="range-wrapper">
-                    <div class="range-value">${currentVal}</div>
-                    <input type="range" class="foundation-range"
-                           data-field-id="${field.id}"
-                           min="${field.min || 1}" max="${field.max || 50}" value="${currentVal}"
-                           style="width:100%">
-                </div>`;
-        }
-        else if (field.type === 'section_title') {
-            html += `<div class="section-title-block">`;
-            html += `<h3 style="margin-bottom:5px;">${escapeHtml(field.label || '')}</h3>`;
-            if (field.helper) html += `<p style="margin-top:0; color:var(--fnd-text-muted);">${escapeHtml(field.helper)}</p>`;
-            html += `</div>`;
-        }
-        else if (field.type === 'description') {
-            html += `<p style="color:var(--fnd-text); line-height:1.6;">${escapeHtml(field.text || '')}</p>`;
-        }
-        else if (field.type === 'divider') {
-            html += `<hr style="border:0; border-top:1px solid var(--fnd-border); margin:20px 0;">`;
+            const accept = getAcceptAttribute(field);
+            const describedBy = [field.helper ? helperId : '', `${field.id}_summary`].filter(Boolean).join(' ');
+            html += `${getFieldHelperMarkup(field, helperId)}<input id="${escapeHtml(field.id)}" type="file" class="fnd-input fnd-file-input" data-field-id="${escapeHtml(field.id)}" data-field-type="file_upload" ${accept ? `accept="${escapeHtml(accept)}"` : ''} multiple aria-describedby="${escapeHtml(describedBy)}" ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>`;
+            html += `<div id="${escapeHtml(field.id)}_summary" data-file-summary-for="${escapeHtml(field.id)}" class="fnd-helper-text">${selectedFiles}</div>`;
+        } else if (field.type === 'range_slider') {
+            const currentVal = userSelections[`${field.id}_val`] || field.min || 1;
+            html += `<div class="range-wrapper"><div class="range-value" id="${escapeHtml(field.id)}_output">${escapeHtml(currentVal)}</div><input id="${escapeHtml(field.id)}_range" type="range" class="foundation-range" data-field-id="${escapeHtml(field.id)}" min="${escapeHtml(field.min || 1)}" max="${escapeHtml(field.max || 50)}" step="${escapeHtml(field.step || 1)}" value="${escapeHtml(currentVal)}" aria-labelledby="${escapeHtml(field.id)}_label" aria-describedby="${escapeHtml(field.id)}_output"></div>`;
+        } else if (field.type === 'section_title') {
+            html += `<div class="section-title-block"><h3 style="margin-bottom:5px;">${escapeHtml(field.label || '')}</h3>${field.helper ? `<p style="margin-top:0;color:var(--fnd-text-muted);">${escapeHtml(field.helper)}</p>` : ''}</div>`;
+        } else if (field.type === 'description') {
+            html += `<p style="color:var(--fnd-text);line-height:1.6;">${escapeHtml(field.text || '')}</p>`;
+        } else if (field.type === 'divider') {
+            html += `<hr style="border:0;border-top:1px solid var(--fnd-border);margin:20px 0;">`;
         }
 
-        html += `</div>`;
+        html += '</div>';
         return html;
     }
 
-    function updateButtons() {
-        $('#btn-prev').prop('disabled', false);
-        $('#btn-next').text('Next Step →');
-        $('.wizard-footer').show();
+    function getAcceptAttribute(field) {
+        if (field && field.accept) return field.accept;
+        const allowed = Array.isArray(uploadRules.allowedTypes) ? uploadRules.allowedTypes : [];
+        return allowed.map((type) => `.${type}`).join(',');
     }
 
-    // --------------------------------------------------
-    // 7. RENDER CONTACT FORM
-    // --------------------------------------------------
     function renderContactForm() {
         currentStep = steps.length;
         getContainer().removeClass('full-width-mode');
-
         updateCoverContent('testimonial');
-
         $('#fnd-progress-bar').hide();
-
-        $('#fnd-step-banner').css('text-align', 'center').html(`
+        $('#fnd-step-banner').html(`
             <h2>We’ll Take It From Here</h2>
-            <p style="margin: 0 auto;">Share your details and we’ll send your personalised project estimate.</p>
+            <p style="margin:0 auto;">Share your details and we’ll send your personalised project estimate.</p>
         `).show();
 
-        const $canvas = getCanvas();
-
-        $canvas.html(`
-            <div class="foundation-lead-form" style="max-width:600px; margin: auto; padding-top:20px;">
-                <div style="display:flex; flex-direction:column; gap:20px;">
-
-                    <div style="display:grid; grid-template-columns: 1fr; gap:20px;">
-                        <div>
-                            <label for="lead-name" style="display:block; margin-bottom:8px; font-weight:600; color:var(--fnd-text);">Full Name <span style="color:#ff4757">*</span></label>
-                            <input type="text" id="lead-name" placeholder="John Doe" required aria-required="true">
-                        </div>
-                        <div>
-                            <label for="company-name" style="display:block; margin-bottom:8px; font-weight:600; color:var(--fnd-text);">Company Name <span style="color:#ff4757">*</span></label>
-                            <input type="text" id="company-name" placeholder="Company Name" required aria-required="true">
-                        </div>
+        getCanvas().html(`
+            <div class="foundation-lead-form">
+                <div class="foundation-contact-grid foundation-contact-grid-single">
+                    <div>
+                        <label for="lead-name">Full Name <span style="color:#c62828">*</span></label>
+                        <input type="text" id="lead-name" placeholder="John Doe" aria-required="true" required>
                     </div>
-
-                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
-                        <div>
-                            <label for="lead-phone" style="display:block; margin-bottom:8px; font-weight:600; color:var(--fnd-text);">Phone Number <span style="color:#ff4757">*</span></label>
-                            <input type="text" id="lead-phone" placeholder="+44 7700 900000" required aria-required="true">
-                        </div>
-                        <div>
-                            <label for="lead-email" style="display:block; margin-bottom:8px; font-weight:600; color:var(--fnd-text);">Email Address <span style="color:#ff4757">*</span></label>
-                            <input type="email" id="lead-email" placeholder="john@company.com" required aria-required="true">
-                        </div>
+                    <div>
+                        <label for="company-name">Company Name <span style="color:#c62828">*</span></label>
+                        <input type="text" id="company-name" placeholder="Company name" aria-required="true" required>
                     </div>
-
-                    <div style="display:grid; grid-template-columns: 1fr; gap:20px;">
-                        <div>
-                            <label for="lead-website" style="display:block; margin-bottom:8px; font-weight:600; color:var(--fnd-text);">Website (Optional)</label>
-                            <input type="text" id="lead-website" placeholder="https://">
-                        </div>
-                    </div>
-                    
-                    <div style="display:none;">
-                        <label for="foundation-honey">Do not fill this out if you are human</label>
-                        <input type="text" id="foundation-honey" name="foundation_honey" tabindex="-1" autocomplete="off">
-                    </div>
-
-                    <div style="display:flex; gap:15px; align-items:center; margin-top:20px;">
-                        <button id="foundation-back-to-steps" type="button" style="background:transparent; border:1px solid var(--fnd-border); color:var(--fnd-text-muted); padding:15px 30px; border-radius:8px; font-weight:700; cursor:pointer;">Back</button>
-                        <button id="foundation-submit-lead" type="button" style="flex:1; background:var(--fnd-primary); color:var(--fnd-primary-fg); border:none; padding:15px; border-radius:8px; font-weight:800; font-size:18px; cursor:pointer;">Get Quote</button>
-                    </div>
-                    
-                    <p id="submission-error" role="alert" style="color:#ff4757; display:none; text-align:center; margin-top:10px; font-weight:600;"></p>
                 </div>
+                <div class="foundation-contact-grid foundation-contact-grid-double">
+                    <div>
+                        <label for="lead-phone">Phone Number <span style="color:#c62828">*</span></label>
+                        <input type="text" id="lead-phone" placeholder="+44 7700 900000" aria-required="true" required>
+                    </div>
+                    <div>
+                        <label for="lead-email">Email Address <span style="color:#c62828">*</span></label>
+                        <input type="email" id="lead-email" placeholder="john@company.com" aria-required="true" required>
+                    </div>
+                </div>
+                <div class="foundation-contact-grid foundation-contact-grid-single">
+                    <div>
+                        <label for="lead-website">Website (Optional)</label>
+                        <input type="text" id="lead-website" placeholder="https://">
+                    </div>
+                </div>
+                <div style="display:none;">
+                    <label for="foundation-honey">Do not fill this out if you are human</label>
+                    <input type="text" id="foundation-honey" name="foundation_honey" tabindex="-1" autocomplete="off">
+                </div>
+                <div class="foundation-form-actions">
+                    <button id="foundation-back-to-steps" type="button" class="foundation-secondary-pill">Back</button>
+                    <button id="foundation-submit-lead" type="button" class="foundation-primary-pill foundation-submit-pill">${escapeHtml(getTriggerLabel())}</button>
+                </div>
+                <p id="submission-error" role="alert" style="color:#c62828;display:none;text-align:center;margin-top:12px;font-weight:600;"></p>
             </div>
-        `).hide().fadeIn(300, () => {
-            $('#lead-name').trigger('focus');
-        });
+        `).hide().fadeIn(250, () => $('#lead-name').trigger('focus'));
 
         $('.wizard-footer').hide();
-
-        $('#foundation-back-to-steps').on('click', function() {
-            const prevVisible = getPrevStepIndex(steps.length);
-            if (prevVisible === -1) {
-                renderStartScreen();
-            } else {
-                renderStep(prevVisible);
-            }
-        });
     }
 
-    // Submit Logic
-    $(document).on('click', '#foundation-submit-lead', function(e) {
-        e.preventDefault();
-        const $btn = $(this);
-        const name = $('#lead-name').val().trim();
-        const email = $('#lead-email').val().trim();
-        const phone = $('#lead-phone').val().trim();
-        const company = $('#company-name').val().trim();
-        const website = $('#lead-website').val().trim();
-        const honeypot = $('#foundation-honey').val();
+    function validateContactForm() {
+        const fields = [
+            { id: '#lead-name', label: 'full name' },
+            { id: '#company-name', label: 'company name' },
+            { id: '#lead-phone', label: 'phone number' },
+            { id: '#lead-email', label: 'email address' }
+        ];
 
-        $('#submission-error').hide().text('');
-
-        if (honeypot) {
-            console.log('Bot detected.');
-            return;
+        for (const field of fields) {
+            const $input = $(field.id);
+            const value = ($input.val() || '').trim();
+            const valid = value !== '';
+            $input.attr('aria-invalid', valid ? 'false' : 'true');
+            if (!valid) {
+                $('#submission-error').text(`Please fill in your ${field.label}.`).show();
+                $input.trigger('focus');
+                return false;
+            }
         }
 
-        if (!name || !email || !phone || !company) {
-            $('#submission-error').text('Please fill in all required fields (Name, Company, Email, Phone).').show();
-            $('#lead-name').focus();
-            return;
-        }
-
+        const email = ($('#lead-email').val() || '').trim();
         if (!validateEmail(email)) {
             $('#submission-error').text('Please enter a valid email address.').show();
-            $('#lead-email').focus();
+            $('#lead-email').attr('aria-invalid', 'true').trigger('focus');
+            return false;
+        }
+
+        return true;
+    }
+
+    function validateEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function handleFileSelection(input) {
+        const fieldId = $(input).data('field-id');
+        const field = findFieldById(fieldId);
+        const files = Array.from(input.files || []);
+        const $summary = getCanvas().find(`[data-file-summary-for="${fieldId}"]`).first();
+        const $error = $('#foundation-step-error');
+
+        const maxFiles = Number(field && field.max_files ? field.max_files : (uploadRules.maxFilesPerField || 5));
+        const maxFileMb = Number(field && field.max_file_size_mb ? field.max_file_size_mb : (uploadRules.maxFileSizeMb || 10));
+        const allowedExtensions = Array.isArray(uploadRules.allowedTypes) ? uploadRules.allowedTypes.map((ext) => String(ext).toLowerCase()) : [];
+
+        if (files.length > maxFiles) {
+            input.value = '';
+            uploadedFiles[fieldId] = [];
+            userSelections[fieldId] = '';
+            $summary.text(`Please upload up to ${maxFiles} files.`);
+            $error.text(`Please upload up to ${maxFiles} files for “${field && field.label ? field.label : 'this upload field'}”.`).show();
             return;
         }
 
+        for (const file of files) {
+            const extension = (file.name.split('.').pop() || '').toLowerCase();
+            if (allowedExtensions.length && !allowedExtensions.includes(extension)) {
+                input.value = '';
+                uploadedFiles[fieldId] = [];
+                userSelections[fieldId] = '';
+                $summary.text(`${file.name} is not an allowed file type.`);
+                $error.text(`${file.name} is not an allowed file type.`).show();
+                return;
+            }
+            if (file.size > maxFileMb * 1024 * 1024) {
+                input.value = '';
+                uploadedFiles[fieldId] = [];
+                userSelections[fieldId] = '';
+                $summary.text(`${file.name} is larger than ${maxFileMb}MB.`);
+                $error.text(`${file.name} is larger than ${maxFileMb}MB.`).show();
+                return;
+            }
+        }
+
+        uploadedFiles[fieldId] = files;
+        userSelections[fieldId] = files.map((file) => file.name).join(', ');
+        $(input).attr('aria-invalid', files.length ? 'false' : 'true');
+        $summary.text(files.length ? files.map((file) => file.name).join(', ') : 'No files selected yet.');
+        clearStepError();
+    }
+
+    function findFieldById(fieldId) {
+        for (const step of steps) {
+            const match = (step.fields || []).find((field) => field.id === fieldId);
+            if (match) return match;
+        }
+        return null;
+    }
+
+    function renderSuccessScreen(serverTotal = null, customerSent = false) {
+        const totalPrice = serverTotal === null ? 0 : serverTotal;
+        const safeName = escapeHtml(($('#lead-name').val() || '').trim());
+        const safeMessage = customerSent
+            ? escapeHtml(branding.successMessage || 'A detailed copy of your proposal has been sent to your email.')
+            : 'Your request has been sent to our team. A customer email could not be sent this time, but we still have your brief.';
+
+        $('#fnd-step-banner').hide();
+        $('.wizard-footer').hide();
+        getCanvas().html(`
+            <div style="text-align:center;padding:60px 0;">
+                <h2 id="foundation-success-heading" style="font-size:32px;margin-bottom:10px;color:var(--fnd-text);" tabindex="-1">Request Received</h2>
+                <div style="font-size:16px;text-transform:uppercase;letter-spacing:1px;color:var(--fnd-text-muted);margin-bottom:10px;margin-top:40px;">Estimated Investment</div>
+                <h1 style="font-size:80px;color:var(--fnd-accent);margin:0;font-weight:800;">${escapeHtml(currencySymbol)}${Number(totalPrice).toLocaleString()}</h1>
+                <p style="color:var(--fnd-text-muted);margin-top:20px;font-size:18px;line-height:1.5;">Thank you, ${safeName}.<br>${safeMessage}</p>
+                <button id="foundation-close-btn" type="button" class="foundation-secondary-pill" style="margin-top:40px;">Close Window</button>
+            </div>
+        `).hide().fadeIn(300, () => $('#foundation-success-heading').trigger('focus'));
+    }
+
+    document.addEventListener('click', function(e) {
+        const link = e.target.closest('a');
+        const triggerClass = e.target.closest('.foundation-trigger');
+        const triggerId = e.target.closest('#foundation-launch-btn');
+        let isLinkMatch = false;
+        if (link) {
+            const href = link.getAttribute('href') || '';
+            if (href.includes('foundation-form') || href.includes('get-quote')) isLinkMatch = true;
+        }
+        if (isLinkMatch || triggerClass || triggerId) {
+            e.preventDefault();
+            e.stopPropagation();
+            openOverlay();
+        }
+    }, true);
+
+    $(document).on('click', '#foundation-close-btn', function(e) {
+        e.preventDefault();
+        closeOverlay();
+    });
+
+    $(document).on('keydown', function(e) {
+        if (e.key === 'Escape' && $overlay.hasClass('is-active')) {
+            e.preventDefault();
+            closeOverlay();
+            return;
+        }
+        focusTrap(e);
+    });
+
+    $(document).on('click', '#fnd-theme-toggle', function() {
+        const current = $overlay.attr('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        $overlay.attr('data-theme', next);
+        $(this).text(next === 'dark' ? 'Light mode' : 'Dark mode').attr('aria-pressed', next === 'light' ? 'true' : 'false');
+    });
+
+    $(document).on('click', '#foundation-start-btn', function() {
+        const firstIndex = getNextStepIndex(-1);
+        renderStep(firstIndex);
+    });
+
+    $(document).on('click', '#btn-next', function() {
+        if (!validateCurrentStep()) return;
+        const nextIndex = getNextStepIndex(currentStep);
+        if (nextIndex >= steps.length && !validateCoreSelections()) return;
+        renderStep(nextIndex);
+    });
+
+    $(document).on('click', '#btn-prev', function() {
+        const prevIndex = getPrevStepIndex(currentStep);
+        if (prevIndex === -1) {
+            renderStartScreen();
+        } else {
+            renderStep(prevIndex);
+        }
+    });
+
+    $(document).on('click', '.option-card', function() {
+        const $card = $(this);
+        const $grid = $card.closest('.options-grid');
+        const fieldId = $grid.data('fieldId') || $card.data('fieldId');
+        const multi = String($grid.data('multi')) === 'true';
+        const optionIndex = String($card.data('optionIndex'));
+        const routeStepId = $card.data('routeStepId') || '';
+        const selectionKey = `${fieldId}_options`;
+        let selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey].map(String) : [];
+
+        if (multi) {
+            if ($card.hasClass('selected')) {
+                selected = selected.filter((idx) => idx !== optionIndex);
+                $card.removeClass('selected').attr('aria-pressed', 'false');
+                if (routeStepId) selectedRouteIds.delete(routeStepId);
+            } else {
+                selected.push(optionIndex);
+                $card.addClass('selected').attr('aria-pressed', 'true');
+                if (routeStepId) selectedRouteIds.add(routeStepId);
+            }
+        } else {
+            $grid.find('.option-card').removeClass('selected').attr('aria-pressed', 'false').each(function() {
+                const rid = $(this).data('routeStepId');
+                if (rid) selectedRouteIds.delete(rid);
+            });
+            selected = [optionIndex];
+            $card.addClass('selected').attr('aria-pressed', 'true');
+            if (routeStepId) selectedRouteIds.add(routeStepId);
+        }
+
+        userSelections[selectionKey] = selected;
+        let total = 0;
+        selected.forEach((idx) => {
+            const $opt = $grid.find(`.option-card[data-option-index="${idx}"]`);
+            total += parseFloat($opt.data('price') || 0);
+        });
+        userSelections[fieldId] = total;
+        clearStepError();
+    });
+
+    $(document).on('input', '.foundation-range', function() {
+        const value = $(this).val();
+        const fieldId = $(this).data('field-id');
+        userSelections[`${fieldId}_val`] = value;
+        $(this).closest('.range-wrapper').find('.range-value').text(value);
+        clearStepError();
+    });
+
+    $(document).on('input change', '.fnd-input[data-field-id]', function() {
+        const fieldId = $(this).data('field-id');
+        const fieldType = $(this).data('field-type');
+        if (!fieldId) return;
+        if (fieldType === 'file_upload') {
+            handleFileSelection(this);
+            return;
+        }
+        userSelections[fieldId] = $(this).val();
+        $(this).attr('aria-invalid', getFieldValue(fieldId) === '' ? 'true' : 'false');
+        clearStepError();
+    });
+
+    $(document).on('click', '#foundation-back-to-steps', function() {
+        const prevVisible = getPrevStepIndex(steps.length);
+        if (prevVisible === -1) renderStartScreen();
+        else renderStep(prevVisible);
+    });
+
+    $(document).on('click', '#foundation-submit-lead', function(e) {
+        e.preventDefault();
+        $('#submission-error').hide().text('');
+        if ($('#foundation-honey').val()) return;
+        if (!validateContactForm()) return;
         if (!validateCoreSelections()) {
+            $('#submission-error').text($('#foundation-step-error').text()).show();
             return;
         }
 
-        $btn.text('Sending Request...');
-        $btn.prop('disabled', true);
+        const $btn = $(this);
+        $btn.text('Sending Request...').prop('disabled', true);
+
         const payload = new FormData();
         payload.append('action', 'foundation_submit_quote');
         payload.append('nonce', config.nonce || '');
-        payload.append('contact[name]', name);
-        payload.append('contact[email]', email);
-        payload.append('contact[phone]', phone);
-        payload.append('contact[company]', company);
-        payload.append('contact[website]', website);
-        payload.append('foundation_honey', honeypot);
+        payload.append('contact[name]', ($('#lead-name').val() || '').trim());
+        payload.append('contact[email]', ($('#lead-email').val() || '').trim());
+        payload.append('contact[phone]', ($('#lead-phone').val() || '').trim());
+        payload.append('contact[company]', ($('#company-name').val() || '').trim());
+        payload.append('contact[website]', ($('#lead-website').val() || '').trim());
+        payload.append('foundation_honey', ($('#foundation-honey').val() || '').trim());
 
         Object.entries(userSelections).forEach(([key, value]) => {
             if (Array.isArray(value)) {
-                value.forEach((item) => {
-                    payload.append(`selections[${key}][]`, String(item));
-                });
-                return;
+                value.forEach((item) => payload.append(`selections[${key}][]`, String(item)));
+            } else {
+                payload.append(`selections[${key}]`, String(value));
             }
-            payload.append(`selections[${key}]`, String(value));
         });
 
         Object.entries(uploadedFiles).forEach(([fieldId, files]) => {
-            if (!Array.isArray(files)) {
-                return;
-            }
-            files.forEach((file) => {
-                payload.append(`uploads[${fieldId}][]`, file, file.name);
-            });
+            if (!Array.isArray(files)) return;
+            files.forEach((file) => payload.append(`uploads[${fieldId}][]`, file, file.name));
         });
 
-        fetch(config.ajaxUrl, {
-            method: 'POST',
-            body: payload
-        })
+        fetch(config.ajaxUrl, { method: 'POST', body: payload })
             .then(async (response) => {
                 let data = null;
                 try {
                     data = await response.json();
-                } catch (err) {
+                } catch (error) {
                     throw new Error('The server returned an unexpected response.');
                 }
-
                 if (!response.ok || !data || !data.success) {
-                    const message = data && data.data && data.data.message
-                        ? data.data.message
-                        : 'We could not send your request right now. Please try again in a moment.';
+                    const message = data && data.data && data.data.message ? data.data.message : 'We could not send your request right now. Please try again in a moment.';
                     throw new Error(message);
                 }
-
-                renderSuccessScreen(data.data && typeof data.data.total !== 'undefined' ? data.data.total : null);
+                renderSuccessScreen(data.data && typeof data.data.total !== 'undefined' ? data.data.total : null, !!(data.data && data.data.customer_sent));
             })
             .catch((error) => {
                 $('#submission-error').text(error.message).show();
-                $btn.text('Get Quote');
-                $btn.prop('disabled', false);
+                $btn.text(getTriggerLabel()).prop('disabled', false);
             });
     });
-
-    function renderSuccessScreen(serverTotal = null) {
-        let totalPrice = serverTotal;
-        if (totalPrice === null) {
-            totalPrice = 0;
-            for (const [key, value] of Object.entries(userSelections)) {
-                if (!key.endsWith('_val') && typeof value === 'number') totalPrice += value;
-            }
-        }
-
-        $('#fnd-step-banner').hide();
-        $('.wizard-footer').hide();
-
-        getCanvas().html(`
-            <div style="text-align:center; padding:60px 0;">
-                <h2 style="font-size:32px; margin-bottom:10px; color:var(--fnd-text);" tabindex="-1">Request Received</h2>
-                <div style="font-size: 16px; text-transform: uppercase; letter-spacing: 1px; color: var(--fnd-text-muted); margin-bottom: 10px; margin-top: 40px;">Estimated Investment</div>
-                <h1 style="font-size: 80px; color: var(--fnd-accent); margin: 0; font-weight:800;">£${totalPrice.toLocaleString()}</h1>
-                <p style="color:var(--fnd-text-muted); margin-top: 20px; font-size:18px;">Thank you, ${$('#lead-name').val()}.<br>A detailed copy of your proposal has been sent to your email.</p>
-                <button id="foundation-close-btn" type="button" style="margin-top:50px; background:transparent; border:2px solid var(--fnd-border); color:var(--fnd-text); padding:12px 35px; border-radius:50px; cursor:pointer; font-weight:600; font-size:16px;">Close Window</button>
-            </div>
-        `).hide().fadeIn(500, () => {
-            // Move focus to the success heading
-            getCanvas().find('h2').first().focus();
-        });
-    }
-
-    function validateEmail(email) {
-        const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return re.test(email);
-    }
 });

@@ -1,51 +1,62 @@
 === Foundation Project Calculator ===
 Contributors: Inkfire
-Tags: calculator, quote, estimate, form builder
+Tags: calculator, quote, estimate, form builder, lead capture
 Requires at least: 6.0
 Tested up to: 6.7
-Stable tag: 1.0.0
+Stable tag: 1.1.0
 License: GPLv2 or later
 
-A lightweight, drag-and-drop quote calculator for WordPress.
+A branded multi-step project calculator for WordPress with configurable emails, upload packaging, and an accessible builder.
 
 == Description ==
 
-Foundation Project Calculator allows you to build interactive quote forms using a drag-and-drop builder. Users can select services, budgets, and timelines to receive an instant estimated cost, while you receive a detailed lead via email.
+Foundation Project Calculator helps teams collect project briefs in a cleaner, more production-ready way.
 
-Key Features:
+Key features:
 
-Drag-and-Drop Builder: Create multi-step forms easily.
-
-Dynamic Pricing: Assign costs to options, toggles, and sliders.
-
-Conditional Logic: Show or hide screens based on user choices.
-
-Email Notifications: Sends a detailed breakdown to both the admin and the customer.
-
-Dark/Light Mode: Fully themable admin and frontend interface.
-
-Responsive: Works perfectly on mobile and desktop.
+* Multi-step builder for quote and onboarding-style flows.
+* Conditional routing between screens.
+* Pricing support for cards, toggles, and sliders.
+* Customer confirmation email and branded admin notification email.
+* Upload handling with file type and size validation.
+* Admin package attachments including PDF summary, JSON summary, and optional ZIP bundle of uploads.
+* Frontend branding controls for intro copy, imagery, success messaging, and customer CTA links.
+* Improved sanitisation and safer saved builder data.
+* Accessible frontend improvements including clearer validation, focus management, and keyboard support.
 
 == Installation ==
 
-Upload the foundation-customer-form folder to the /wp-content/plugins/ directory.
-
-Activate the plugin through the 'Plugins' menu in WordPress.
-
-Go to Foundation > Form Calculator in the admin menu to build your form.
-
-Use the shortcode [foundation_form] on any page to display the calculator.
+1. Upload the `foundation-project-calculator` folder to `/wp-content/plugins/`.
+2. Activate the plugin in WordPress.
+3. Go to **Foundation > Project Calculator** to build your form flow.
+4. Go to **Foundation > Calculator Settings** to set email recipients, branding, and upload rules.
+5. Place the shortcode `[foundation_form]` on the page where the calculator should appear.
 
 == Usage ==
 
-Frontend Shortcode:
-[foundation_form]
+Frontend shortcode:
+`[foundation_form]`
 
-Hide the default "Get a Quote" button:
-[foundation_form button="false"] (Useful if you want to trigger the form with your own button using the class .foundation-trigger or ID #foundation-launch-btn).
+Hide the default button:
+`[foundation_form button="false"]`
+
+This is useful when you want to launch the form with your own trigger using `.foundation-trigger` or a link containing `get-quote`.
+
+== Notes ==
+
+* Uploaded files are validated against the allowed file list in the settings page.
+* The admin email can include a PDF summary, JSON summary, and ZIP package when supported by the server.
+* The builder stores sanitised form definitions in the `foundation_form_data` option.
 
 == Changelog ==
 
-= 1.0.0 =
+= 1.1.0 =
+* Added a friendly settings screen for notifications, branding, and upload rules.
+* Replaced hard-coded branding and email values with configurable options.
+* Added sanitisation for builder saves and safer frontend rendering.
+* Added upload validation, PDF summaries, JSON exports, and optional ZIP staff package attachments.
+* Improved frontend accessibility, focus handling, and validation feedback.
+* Updated uninstall cleanup.
 
-Initial release.
+= 1.0.0 =
+* Initial release.
