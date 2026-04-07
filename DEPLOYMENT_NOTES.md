@@ -88,6 +88,13 @@ Final production smoke checks completed:
 - one successful AJAX submission
 - admin notification email accepted by `wp_mail`
 - customer email accepted by `wp_mail`
+- saved form data cleanup for the required project brief label
+
+Cache note:
+
+- NitroPack purge and WordPress object-cache flush completed successfully after the label cleanup.
+- The plain production URL still returned `x-litespeed-cache: hit` and showed the stale label immediately afterward.
+- The cache-busted production URL and direct WordPress option reads show the corrected label, so the remaining stale copy is a LiteSpeed/Hostinger cache layer rather than plugin data.
 
 ## Rollback
 

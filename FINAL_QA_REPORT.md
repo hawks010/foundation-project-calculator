@@ -32,6 +32,8 @@ Production now runs `foundation-project-calculator-v130` at `1.3.0`, with `found
 - Production public page check passed: `https://inkfire.co.uk/foundation/` renders from the `foundation-project-calculator-v130` plugin folder and contains the core budget/timeline/services fields.
 - Production asset check passed: `assets/admin/admin-app.js`, `assets/admin/admin-app.css`, and `assets/js/foundation-frontend.js` all returned `200`.
 - Production AJAX submission smoke test passed with the live frontend nonce: `admin_sent=true`, `customer_sent=true`, and `customer_email_status=sent`.
+- The required project brief field label was corrected in saved blueprint and production form data from `Whats your project brief? (optional)` to `What is your project brief?` so the label matches the required behavior.
+- Cache-busted production and blueprint URLs show the corrected project brief label. The plain production URL was still serving a stale LiteSpeed-cached HTML hit immediately after NitroPack/object-cache purge, so it may need Hostinger/LiteSpeed cache expiry or panel-level purge before the non-cache-busted URL reflects that copy edit.
 
 ## Test results
 
