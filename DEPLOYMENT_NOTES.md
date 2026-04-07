@@ -22,11 +22,11 @@
 - Sandbox old snapshot copy kept inactive: `/home/u363235284/domains/inkfire.co.uk/public_html/sandbox/wp-content/plugins/foundation-project-calculator-live-v100`
 - Sandbox new working copy: `/home/u363235284/domains/inkfire.co.uk/public_html/sandbox/wp-content/plugins/foundation-project-calculator-v110`
 
-## Current live status before v1.3.0 rollout
+## Current live status after v1.3.0 rollout
 
-- `inkfire.co.uk`: `foundation-project-calculator-v110` is active at `1.1.0`
+- `inkfire.co.uk`: `foundation-project-calculator-v130` is active at `1.3.0`
+- `inkfire.co.uk`: `foundation-project-calculator-v110` is still installed and inactive at `1.1.0`
 - `inkfire.co.uk`: old `foundation-project-calculator` is still installed and inactive at `1.0.0`
-- `inkfire.co.uk`: `foundation-project-calculator-v130` is installed and inactive at `1.3.0`
 - `blueprint.inkfire.co.uk`: `foundation-project-calculator-v130` is active at `1.3.0`
 - `blueprint.inkfire.co.uk`: `foundation-project-calculator-v110` is installed and inactive at `1.1.0`
 - `sandbox.inkfire.co.uk`: `foundation-project-calculator-v110` is active at `1.1.0`
@@ -34,12 +34,13 @@
 
 ## v1.3.0 rollout status
 
-- The `v1.3.0` admin redesign package is being rebuilt on `codex/finalise-v1-3-0-admin-redesign`
+- The `v1.3.0` admin redesign package was rebuilt on `codex/finalise-v1-3-0-admin-redesign`
 - The uploaded beta did not include React/Tailwind source tooling, so this branch now adds a real React/Tailwind/Vite admin builder under `src/admin`
 - Production assets are built to `assets/admin`
-- Previous blueprint server-side smoke testing passed before the React rebuild
-- This React rebuild still needs to be refreshed onto blueprint before final manual browser QA
-- Do not deploy `v1.3.0` to production before manual browser QA
+- Blueprint server-side smoke testing passed after the React rebuild
+- Production has been switched from `foundation-project-calculator-v110` to `foundation-project-calculator-v130`
+- The previous inactive production `v1.3.0` folder was backed up and removed before the current build was installed fresh
+- Backup path: `/home/u363235284/domains/inkfire.co.uk/public_html/wp-content/foundation-project-calculator-v130-pre-final-20260407022914.tar.gz`
 
 ## Blueprint v1.3.0 smoke test results
 
@@ -76,18 +77,17 @@ React rebuild local results:
 
 ## Production activation recommendation
 
-1. Keep the existing production plugin directory in place as the rollback copy.
-2. Complete manual browser QA on `blueprint.inkfire.co.uk`.
-3. Upload the finalized production build into a separate production plugin directory only after blueprint manual QA passes.
-4. Deactivate the currently active `foundation-project-calculator-v110` production copy only during the final change window.
-5. Activate the finalized `v1.3.0` plugin and immediately test:
-   - shortcode page render
-   - one successful submission
-   - admin notification email
-   - customer email
-   - generated PDF/JSON/ZIP attachments
-   - dashboard dark/light toggle
-   - save/resume magic link
+`v1.3.0` is now active on production. Leave `foundation-project-calculator-v110` and the original `foundation-project-calculator` installed and inactive until the team has completed manual browser QA and inspected a received email package.
+
+Final production smoke checks completed:
+
+- shortcode page render
+- schema/frontend role sync
+- route-target integrity
+- production admin and frontend assets returning `200`
+- one successful AJAX submission
+- admin notification email accepted by `wp_mail`
+- customer email accepted by `wp_mail`
 
 ## Rollback
 

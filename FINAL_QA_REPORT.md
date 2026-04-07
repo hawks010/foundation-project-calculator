@@ -21,7 +21,17 @@ Date: 2026-04-07
 
 The uploaded `v1.3.0` beta was imported for review, then the backend builder was rebuilt as a React/Tailwind admin app because the uploaded package did not actually contain the expected React source. The new app uses Vite, scoped Tailwind styles, clean light/dark theme tokens, slide-level editing, drag/drop reordering, keyboard move controls, and a service routing inspector that writes to the same `foundation_form_data` schema used by the public calculator.
 
-Production currently remains on `foundation-project-calculator-v110` at `1.1.0`, with the older `foundation-project-calculator` at `1.0.0` still installed and inactive. A `foundation-project-calculator-v130` copy is present on production but inactive. Blueprint is running the separate `foundation-project-calculator-v130` copy for smoke testing, with `foundation-project-calculator-v110` left installed and inactive there as rollback.
+Production now runs `foundation-project-calculator-v130` at `1.3.0`, with `foundation-project-calculator-v110` at `1.1.0` and the older `foundation-project-calculator` at `1.0.0` still installed and inactive for rollback. Blueprint is also running the separate `foundation-project-calculator-v130` copy, with `foundation-project-calculator-v110` left installed and inactive there as rollback.
+
+## Final production rollout - 2026-04-07
+
+- Production `v1.3.0` was installed into a freshly recreated `foundation-project-calculator-v130` plugin folder.
+- The previous inactive production `v1.3.0` folder was backed up before removal to `/home/u363235284/domains/inkfire.co.uk/public_html/wp-content/foundation-project-calculator-v130-pre-final-20260407022914.tar.gz`.
+- Production activation succeeded: `foundation-project-calculator-v130` active, `foundation-project-calculator-v110` inactive, and `foundation-project-calculator` inactive.
+- Production schema sync check passed: 15 slides, `field_budget`, `field_timeline`, and `field_services_main` all present, 12 route targets, no broken route targets, no empty option labels, and no unreachable conditional slides.
+- Production public page check passed: `https://inkfire.co.uk/foundation/` renders from the `foundation-project-calculator-v130` plugin folder and contains the core budget/timeline/services fields.
+- Production asset check passed: `assets/admin/admin-app.js`, `assets/admin/admin-app.css`, and `assets/js/foundation-frontend.js` all returned `200`.
+- Production AJAX submission smoke test passed with the live frontend nonce: `admin_sent=true`, `customer_sent=true`, and `customer_email_status=sent`.
 
 ## Test results
 
@@ -64,6 +74,7 @@ Production currently remains on `foundation-project-calculator-v110` at `1.1.0`,
 - Blueprint full submission returned `admin_sent=true`, `customer_sent=true`, `customer_email_status=sent`
 - Blueprint magic-link email returned `email_sent=true`
 - Blueprint metrics updated for `responses_saved` and `saved_drafts`
+- Final production full submission returned `admin_sent=true`, `customer_sent=true`, `customer_email_status=sent`
 
 ### Not run
 
@@ -83,12 +94,11 @@ Production currently remains on `foundation-project-calculator-v110` at `1.1.0`,
 
 ## Recommendation
 
-Safe to redeploy to blueprint for testing. Not yet recommended for production until a short manual browser pass confirms the rebuilt React admin and public calculator visually.
+Safe to leave `v1.3.0` active on production after the server-side smoke checks above.
 
-Do not activate `v1.3.0` on production until:
+Still recommended before calling the rollout fully closed:
 
-- manual admin dashboard dark/light mode pass is complete
-- manual builder load/save/import/export pass is complete
-- manual public calculator pass is complete on desktop and mobile
-- one real received email attachment package is inspected
-- rollback from `v1.3.0` to production `v1.1.0` is documented
+- manual admin dashboard dark/light mode pass
+- manual builder load/save/import/export pass
+- manual public calculator pass on desktop and mobile
+- inspection of the received production email attachment package

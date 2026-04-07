@@ -18,6 +18,7 @@
 - added rate limiting for magic-link email sends
 - improved no-email save messaging so users always see a usable resume link
 - restored repo hygiene that was missing from the beta zip
+- deployed the finalized `v1.3.0` build to production after blueprint and production smoke tests passed
 
 ## 1.0.0
 
