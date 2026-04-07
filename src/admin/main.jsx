@@ -758,8 +758,8 @@ function Header({ config, panel, setPanel, theme, setTheme, status, settingsStat
             <img className="h-11 w-11 object-contain drop-shadow-md" src={config.logoUrl} alt="" />
           ) : null}
           <div>
-            <p className="m-0 text-[0.68rem] font-black uppercase tracking-[0.28em] text-[var(--fp-accent)]">Foundation</p>
-            <h1 className="m-0 text-xl font-black tracking-[-0.03em] text-[var(--fp-heading)] md:text-2xl">Project Calculator</h1>
+            <p className="m-0 text-[0.72rem] font-black tracking-[0.08em] text-[var(--fp-accent)]">Foundation</p>
+            <h1 className="m-0 text-xl font-black tracking-[-0.02em] text-[var(--fp-heading)] md:text-2xl">Project calculator</h1>
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
@@ -820,8 +820,8 @@ function SettingsPanel({ settings, setSettings, settingsStatus, onSaveSettings }
         <p className="fp-kicker">Settings</p>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="fp-heading">Calculator settings</h2>
-            <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">Email, branding, uploads, and follow-up links now live in this workspace.</p>
+            <h2 className="fp-heading">Settings</h2>
+            <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">Email, branding, uploads, and follow-up links.</p>
           </div>
           <button className="fp-button fp-button-primary fp-button-compact" type="button" onClick={onSaveSettings}>Save settings</button>
         </div>
@@ -897,7 +897,7 @@ function Dashboard({ metrics, journey, config, warnings }) {
     <main className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
       <section className="fp-panel p-5 md:p-6">
         <p className="fp-kicker">Form health</p>
-        <h2 className="fp-heading">What staff need to know before editing</h2>
+        <h2 className="fp-heading">Overview</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
           {metrics.map((metric) => (
             <div className="rounded-3xl border border-[var(--fp-border)] bg-[var(--fp-surface)] p-5" key={metric.label}>
@@ -910,7 +910,7 @@ function Dashboard({ metrics, journey, config, warnings }) {
       </section>
       <aside className="fp-panel p-5 md:p-6">
         <p className="fp-kicker">Frontend sync</p>
-        <h2 className="fp-heading">Calculator structure checks</h2>
+        <h2 className="fp-heading">Sync checks</h2>
         <div className="mt-5 space-y-3">
           {warnings.length ? warnings.map((warning) => (
             <div className="fp-warning" key={warning}>{warning}</div>
@@ -943,7 +943,7 @@ function SlideRail({ steps, activeStepId, setActiveStepId, setSelectedFieldId, a
       <div className="flex items-center justify-between gap-3 border-b border-[var(--fp-border)] p-5">
         <div>
           <p className="fp-kicker">Slides</p>
-          <h2 className="fp-heading">Customer flow</h2>
+          <h2 className="fp-heading">Slides</h2>
         </div>
         <button className="fp-icon-button" type="button" onClick={addStep} aria-label="Add slide">+</button>
       </div>
@@ -1009,8 +1009,8 @@ function BuilderCanvas({ activeStep, activeStepIndex, selectedFieldId, setSelect
                 setDragState(null);
               }}
             >
-              <p className="m-0 text-lg font-black text-[var(--fp-heading)]">Start this slide with a question</p>
-              <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">Choose from the left, or drag a question type into this canvas.</p>
+              <p className="m-0 text-lg font-black text-[var(--fp-heading)]">Add a question</p>
+              <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">Choose a question type above.</p>
             </div>
           ) : null}
           {activeStep?.fields?.map((field, index) => (
@@ -1036,7 +1036,7 @@ function BuilderCanvas({ activeStep, activeStepIndex, selectedFieldId, setSelect
 function Toolbox({ addFieldFromBlueprint, setDragState }) {
   return (
     <div>
-      <p className="fp-kicker">Add</p>
+      <p className="fp-kicker">Add question</p>
       <div className="mt-3 grid gap-3 xl:grid-cols-2">
         {Object.entries(groupedBlueprints).map(([group, items]) => (
           <div key={group}>
@@ -1128,7 +1128,7 @@ function FieldMiniPreview({ field }) {
 function Inspector({ steps, activeStep, selectedField, updateStep, updateSelectedField, updateServiceOption, addOption, removeOption, moveOption, warnings }) {
   return (
     <aside className="fp-panel max-h-[82vh] overflow-auto p-5 md:p-6">
-      <p className="fp-kicker">Inspector</p>
+      <p className="fp-kicker">Edit</p>
       {selectedField ? (
         <FieldInspector
           steps={steps}
@@ -1143,7 +1143,7 @@ function Inspector({ steps, activeStep, selectedField, updateStep, updateSelecte
         <StepInspector step={activeStep} updateStep={updateStep} />
       )}
       <div className="mt-6 border-t border-[var(--fp-border)] pt-5">
-        <p className="fp-kicker">Frontend sync</p>
+        <p className="fp-kicker">Checks</p>
         <div className="mt-3 space-y-3">
           {warnings.length ? warnings.slice(0, 4).map((warning) => <div className="fp-warning" key={warning}>{warning}</div>) : <div className="fp-success">This structure is ready for the frontend.</div>}
           {warnings.length > 4 ? <p className="m-0 text-sm text-[var(--fp-muted)]">{warnings.length - 4} more check(s) on the dashboard.</p> : null}
@@ -1157,7 +1157,7 @@ function StepInspector({ step, updateStep }) {
   if (!step) return null;
   return (
     <div>
-      <h2 className="fp-heading">Slide settings</h2>
+      <h2 className="fp-heading">Slide</h2>
       <FieldLabel label="Slide title">
         <input className="fp-input" value={step.title} onChange={(event) => updateStep(step.id, { title: event.target.value })} />
       </FieldLabel>
@@ -1178,7 +1178,7 @@ function StepInspector({ step, updateStep }) {
 function FieldInspector({ steps, field, updateSelectedField, updateServiceOption, addOption, removeOption, moveOption }) {
   return (
     <div>
-      <h2 className="fp-heading">{typeLabels[field.type] || 'Question'} settings</h2>
+      <h2 className="fp-heading">Question</h2>
       <FieldLabel label="Question label">
         <input className="fp-input" value={field.label} onChange={(event) => updateSelectedField({ label: event.target.value })} />
       </FieldLabel>
@@ -1198,7 +1198,7 @@ function FieldInspector({ steps, field, updateSelectedField, updateServiceOption
       {!['section_title', 'description', 'divider'].includes(field.type) ? (
         <label className="mt-4 flex items-center gap-3 text-sm font-bold text-[var(--fp-heading)]">
           <input type="checkbox" checked={Boolean(field.required)} onChange={(event) => updateSelectedField({ required: event.target.checked })} />
-          Required before moving on
+          Required
         </label>
       ) : null}
 
@@ -1223,7 +1223,7 @@ function FieldInspector({ steps, field, updateSelectedField, updateServiceOption
 function ServiceInspector({ steps, field, updateSelectedField, updateServiceOption, addOption, removeOption, moveOption }) {
   return (
     <div className="mt-6 border-t border-[var(--fp-border)] pt-5">
-      <p className="fp-kicker">Service and routing</p>
+      <p className="fp-kicker">Choices</p>
       <div className="grid gap-3 md:grid-cols-2">
         <FieldLabel label="Card group">
           <select className="fp-input" value={field.variant || 'services'} onChange={(event) => updateSelectedField({ variant: event.target.value })}>
@@ -1237,7 +1237,7 @@ function ServiceInspector({ steps, field, updateSelectedField, updateServiceOpti
         </FieldLabel>
       </div>
       <div className="mt-5 flex items-center justify-between gap-3">
-        <h3 className="m-0 text-sm font-black uppercase tracking-[0.18em] text-[var(--fp-muted)]">Options</h3>
+        <h3 className="m-0 text-sm font-black tracking-[0.04em] text-[var(--fp-muted)]">Options</h3>
         <button className="fp-button fp-button-ghost" type="button" onClick={addOption}>Add option</button>
       </div>
       <div className="mt-3 space-y-3">
