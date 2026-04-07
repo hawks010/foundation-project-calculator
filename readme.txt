@@ -3,7 +3,7 @@ Contributors: Inkfire
 Tags: calculator, quote, estimate, form builder, lead capture
 Requires at least: 6.4
 Tested up to: 6.9
-Stable tag: 1.3.0
+Stable tag: 1.3.1
 License: GPLv2 or later
 
 A branded multi-step project calculator for WordPress with configurable emails, upload packaging, and an accessible builder.
@@ -56,6 +56,10 @@ This is useful when you want to launch the form with your own trigger using `.fo
 * Admin source lives in `src/admin`; production assets are built to `assets/admin`.
 
 == Changelog ==
+
+= 1.3.1 =
+
+- Fixed a frontend submission blocker where cached or draft selection state could report missing budget/timeline choices even after the customer had selected them.
 
 = 1.3.0 =
 * Rebuilt the admin builder in React and Tailwind with metrics and dashboard/builder navigation.

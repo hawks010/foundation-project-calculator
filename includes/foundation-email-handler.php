@@ -200,7 +200,13 @@ function foundation_process_quote() {
 			continue;
 		}
 		$selected = $selections[ $field_id . '_options' ] ?? array();
-		if ( ! is_array( $selected ) || empty( $selected ) ) {
+		$has_selection = is_array( $selected ) && ! empty( $selected );
+		if ( ! $has_selection && array_key_exists( $field_id, $selections ) ) {
+			// Compatibility for older saved drafts/cached frontend states that
+			// stored the selected picker price but not the selected option index.
+			$has_selection = true;
+		}
+		if ( ! $has_selection ) {
 			$missing_core[] = $label;
 		}
 	}

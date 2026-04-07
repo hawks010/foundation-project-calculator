@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.1
+
+- fixed a frontend submission blocker where cached or draft selection state could report missing budget/timeline choices even after the customer had selected them
+- added backend compatibility for older/cached picker payloads that include the scalar picker value without the selected option index
+- bumped the plugin asset version so WordPress requests the corrected frontend JavaScript
+
 ## 1.3.0
 
 - imported the uploaded `v1.3.0` admin redesign package into git

@@ -3,7 +3,7 @@
  * Plugin Name: Foundation Project Calculator
  * Plugin URI: https://github.com/hawks010/foundation-project-calculator
  * Description: A multi-step project calculator and lead capture tool with branded customer emails, upload packaging, and an accessible builder.
- * Version: 1.3.0
+ * Version: 1.3.1
  * Author: Inkfire
  * Text Domain: foundation-customer-form
  * Requires at least: 6.4
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'FOUNDATION_FILE', __FILE__ );
 define( 'FOUNDATION_PATH', plugin_dir_path( __FILE__ ) );
 define( 'FOUNDATION_URL', plugin_dir_url( __FILE__ ) );
-define( 'FOUNDATION_VERSION', '1.3.0' );
+define( 'FOUNDATION_VERSION', '1.3.1' );
 
 require_once FOUNDATION_PATH . 'includes/foundation-core.php';
 require_once FOUNDATION_PATH . 'includes/class-foundation-admin.php';

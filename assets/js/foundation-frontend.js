@@ -396,6 +396,18 @@ jQuery(document).ready(function($) {
         return ids;
     }
 
+    function hasCoreSelection(fieldId) {
+        if (!fieldId) return false;
+        const selectedOptions = userSelections[`${fieldId}_options`] || [];
+        if (Array.isArray(selectedOptions) && selectedOptions.length > 0) {
+            return true;
+        }
+
+        // Older saved drafts and some cached frontend states stored only the scalar
+        // price field. If it exists, the customer has interacted with this picker.
+        return Object.prototype.hasOwnProperty.call(userSelections, fieldId);
+    }
+
     function validateCoreSelections() {
         const ids = getCoreFieldIds();
         const checks = [
@@ -405,8 +417,7 @@ jQuery(document).ready(function($) {
         ];
         const missing = checks.filter((check) => {
             if (!ids[check.key]) return false;
-            const selected = userSelections[`${ids[check.key]}_options`] || [];
-            return !Array.isArray(selected) || selected.length === 0;
+            return !hasCoreSelection(ids[check.key]);
         }).map((check) => check.label);
 
         if (missing.length) {

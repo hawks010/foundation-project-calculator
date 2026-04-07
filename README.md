@@ -1,6 +1,6 @@
 # Foundation Project Calculator
 
-Version: 1.3.0
+Version: 1.3.1
 
 Public repository: https://github.com/hawks010/foundation-project-calculator
 
