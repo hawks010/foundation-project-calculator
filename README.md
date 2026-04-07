@@ -1,6 +1,6 @@
 # Foundation Project Calculator
 
-Version: 1.1.0
+Version: 1.3.0
 
 Public repository: https://github.com/hawks010/foundation-project-calculator
 
@@ -22,6 +22,8 @@ A branded multi-step quote calculator and lead capture plugin for WordPress, har
   - JSON summary
   - ZIP package of uploads when supported by the server
 - Bundled GitHub auto-updater using `plugin-update-checker`
+- Admin dashboard redesign with metrics, dashboard/builder sections, and dark/light theme switching
+- Save/resume draft flow with magic-link email support
 - Updated uninstall cleanup
 
 ## Admin flow
@@ -41,6 +43,7 @@ A branded multi-step quote calculator and lead capture plugin for WordPress, har
 
 ## Notes
 
+- This `v1.3.0` package does not include React/Tailwind source tooling; the shipped dashboard is implemented in plugin PHP, vanilla JavaScript, and CSS
 - The frontend launch button can be hidden with `[foundation_form button="false"]`
 - You can trigger the calculator with `.foundation-trigger` or a link containing `get-quote`
 - Upload packaging depends on server support for `ZipArchive`

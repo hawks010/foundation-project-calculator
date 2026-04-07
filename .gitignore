@@ -12,6 +12,10 @@ dist/
 build/
 coverage/
 
+# The bundled updater needs these parser dependencies in release zips.
+!plugin-update-checker/vendor/
+!plugin-update-checker/vendor/*.php
+
 # Archives and generated exports
 *.zip
 *.tar

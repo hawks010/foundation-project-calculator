@@ -10,6 +10,9 @@ jQuery(document).ready(function($) {
     let uploadedFiles = {};
     let selectedRouteIds = new Set();
     let lastActiveElement = null;
+    let journeyStarted = false;
+    let journeyCompleted = false;
+    let resumeToken = '';
 
     const $overlay = $('#foundation-app-overlay');
     if ($overlay.length && $overlay.parent().prop('tagName') !== 'BODY') {
@@ -24,6 +27,11 @@ jQuery(document).ready(function($) {
     });
 
     steps = steps.map((step, index) => normalizeStep(step, index));
+    trackViewOnce();
+    const initialResumeToken = getResumeTokenFromUrl();
+    if (initialResumeToken) {
+        restoreDraftFromToken(initialResumeToken);
+    }
 
     function normalizeStep(step, index) {
         const normalized = $.extend(true, {
@@ -74,6 +82,150 @@ jQuery(document).ready(function($) {
             .replace(/'/g, '&#39;');
     }
 
+
+
+    function trackEvent(eventName, message = '') {
+        if (!config.ajaxUrl || !config.nonce) return Promise.resolve();
+        const payload = new URLSearchParams();
+        payload.set('action', 'foundation_track_quote_event');
+        payload.set('nonce', config.nonce || '');
+        payload.set('event', eventName);
+        if (message) payload.set('message', message);
+        return fetch(config.ajaxUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: payload.toString()
+        }).catch(() => null);
+    }
+
+    function trackViewOnce() {
+        const key = 'foundation_form_view_tracked';
+        try {
+            if (window.sessionStorage && !window.sessionStorage.getItem(key)) {
+                window.sessionStorage.setItem(key, '1');
+                trackEvent('view');
+            }
+        } catch (error) {
+            trackEvent('view');
+        }
+    }
+
+    function getResumeConfig() {
+        return config.resume || {};
+    }
+
+    function getResumeQueryParam() {
+        return getResumeConfig().queryParam || 'foundation_resume';
+    }
+
+    function getResumeBaseUrl() {
+        return getResumeConfig().baseUrl || window.location.href.split('?')[0];
+    }
+
+    function getResumeTokenFromUrl() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(getResumeQueryParam()) || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function getContactDraftValues() {
+        return {
+            name: ($('#lead-name').val() || '').trim(),
+            email: ($('#lead-email').val() || '').trim(),
+            phone: ($('#lead-phone').val() || '').trim(),
+            company: ($('#company-name').val() || '').trim(),
+            website: ($('#lead-website').val() || '').trim()
+        };
+    }
+
+    function applyDraftContact(contact) {
+        if (!contact || typeof contact !== 'object') return;
+        $('#lead-name').val(contact.name || '');
+        $('#lead-email').val(contact.email || '');
+        $('#lead-phone').val(contact.phone || '');
+        $('#company-name').val(contact.company || '');
+        $('#lead-website').val(contact.website || '');
+    }
+
+    function saveDraft(sendEmail = false) {
+        if (!config.ajaxUrl || !config.nonce) return Promise.reject(new Error('Saving is not available right now.'));
+        const contact = getContactDraftValues();
+        const payload = new FormData();
+        payload.append('action', 'foundation_save_quote_draft');
+        payload.append('nonce', config.nonce || '');
+        payload.append('token', resumeToken || '');
+        payload.append('current_step', String(currentStep));
+        payload.append('resume_base', getResumeBaseUrl());
+        payload.append('send_email', sendEmail ? '1' : '0');
+        Object.entries(contact).forEach(([key, value]) => payload.append(`contact[${key}]`, String(value || '')));
+        Object.entries(userSelections).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach((item) => payload.append(`selections[${key}][]`, String(item)));
+            } else {
+                payload.append(`selections[${key}]`, String(value));
+            }
+        });
+        return fetch(config.ajaxUrl, { method: 'POST', body: payload })
+            .then(async (response) => {
+                const data = await response.json();
+                if (!response.ok || !data || !data.success) {
+                    const message = data && data.data && data.data.message ? data.data.message : 'We could not save your progress right now.';
+                    throw new Error(message);
+                }
+                resumeToken = data.data && data.data.token ? String(data.data.token) : resumeToken;
+                return data.data || {};
+            });
+    }
+
+    function restoreDraftFromToken(token) {
+        if (!token || !config.ajaxUrl || !config.nonce) return;
+        const payload = new URLSearchParams();
+        payload.set('action', 'foundation_resume_quote_draft');
+        payload.set('nonce', config.nonce || '');
+        payload.set('token', token);
+        fetch(config.ajaxUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: payload.toString()
+        }).then(async (response) => {
+            const data = await response.json();
+            if (!response.ok || !data || !data.success || !data.data) return;
+            resumeToken = token;
+            const payload = data.data;
+            userSelections = payload.selections && typeof payload.selections === 'object' ? payload.selections : {};
+            const draftContact = payload.contact && typeof payload.contact === 'object' ? payload.contact : {};
+            selectedRouteIds = new Set();
+            steps.forEach((step) => {
+                (step.fields || []).forEach((field) => {
+                    if (field.type !== 'service_card') return;
+                    const selectionKey = `${field.id}_options`;
+                    const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey].map(String) : [];
+                    (field.options || []).forEach((opt, idx) => {
+                        if (selected.includes(String(idx)) && opt.route_step_id) selectedRouteIds.add(opt.route_step_id);
+                    });
+                });
+            });
+            buildWizardLayout();
+            $overlay.css({ display: 'flex', visibility: 'visible', opacity: '1' }).addClass('is-active');
+            $('body').css('overflow', 'hidden');
+            journeyStarted = true;
+            trackEvent('start');
+            const draftStep = Number.isInteger(payload.current_step) ? payload.current_step : parseInt(payload.current_step, 10);
+            if (!Number.isNaN(draftStep) && draftStep >= 0 && draftStep < steps.length) {
+                renderStep(draftStep);
+            } else if (!Number.isNaN(draftStep) && draftStep >= steps.length) {
+                renderContactForm();
+            } else {
+                const firstIndex = getNextStepIndex(-1);
+                renderStep(firstIndex);
+            }
+            window.setTimeout(() => applyDraftContact(draftContact), 60);
+        }).catch(() => null);
+    }
+
     function getCanvas() {
         return $('#foundation-app-canvas');
     }
@@ -96,6 +248,8 @@ jQuery(document).ready(function($) {
         userSelections = {};
         uploadedFiles = {};
         selectedRouteIds = new Set();
+        journeyStarted = false;
+        journeyCompleted = false;
         buildWizardLayout();
         $overlay.css({ display: 'flex', visibility: 'visible', opacity: '0' });
         $('body').css('overflow', 'hidden');
@@ -107,6 +261,7 @@ jQuery(document).ready(function($) {
     }
 
     function closeOverlay() {
+        if (journeyStarted && !journeyCompleted) { trackEvent('incomplete'); }
         $overlay.removeClass('is-active').css('opacity', '0');
         window.setTimeout(() => {
             $overlay.css('display', 'none');
@@ -132,6 +287,7 @@ jQuery(document).ready(function($) {
                         </div>
                         <div class="wizard-controls">
                             <button class="theme-toggle" id="fnd-theme-toggle" type="button" aria-pressed="false">Light mode</button>
+                            <button class="close-link" id="foundation-save-draft-btn" type="button">Save &amp; resume</button>
                             <button class="close-link" id="foundation-close-btn" type="button">Close</button>
                         </div>
                     </div>
@@ -502,6 +658,7 @@ jQuery(document).ready(function($) {
                 </div>
                 <div class="foundation-form-actions">
                     <button id="foundation-back-to-steps" type="button" class="foundation-secondary-pill">Back</button>
+                    <button id="foundation-save-and-email" type="button" class="foundation-secondary-pill">Save &amp; email link</button>
                     <button id="foundation-submit-lead" type="button" class="foundation-primary-pill foundation-submit-pill">${escapeHtml(getTriggerLabel())}</button>
                 </div>
                 <p id="submission-error" role="alert" style="color:#c62828;display:none;text-align:center;margin-top:12px;font-weight:600;"></p>
@@ -641,6 +798,43 @@ jQuery(document).ready(function($) {
         }
     }, true);
 
+
+
+    $(document).on('click', '#foundation-save-draft-btn, #foundation-save-and-email', function(e) {
+        e.preventDefault();
+        const sendEmail = this.id === 'foundation-save-and-email';
+        const $button = $(this);
+        const original = $button.text();
+        $button.prop('disabled', true).text(sendEmail ? 'Sending link…' : 'Saving…');
+        saveDraft(sendEmail)
+            .then((data) => {
+                const resumeUrl = data && data.resume_url ? String(data.resume_url) : '';
+                if (!sendEmail && resumeUrl && navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(resumeUrl).catch(() => null);
+                }
+                const message = sendEmail
+                    ? 'We emailed your magic link. Uploaded files will need to be added again when you return.'
+                    : (resumeUrl ? `Progress saved. Resume link: ${resumeUrl}` : 'Progress saved.');
+                if ($('#submission-error').length) {
+                    $('#submission-error').css('color', 'var(--fnd-accent)').text(message).show();
+                } else {
+                    setStepError(message);
+                }
+            })
+            .catch((error) => {
+                const message = error && error.message ? error.message : 'We could not save your progress right now.';
+                if ($('#submission-error').length) {
+                    $('#submission-error').css('color', '#c62828').text(message).show();
+                } else {
+                    setStepError(message);
+                }
+                trackEvent('failure', message);
+            })
+            .finally(() => {
+                $button.prop('disabled', false).text(original);
+            });
+    });
+
     $(document).on('click', '#foundation-close-btn', function(e) {
         e.preventDefault();
         closeOverlay();
@@ -663,6 +857,10 @@ jQuery(document).ready(function($) {
     });
 
     $(document).on('click', '#foundation-start-btn', function() {
+        if (!journeyStarted) {
+            journeyStarted = true;
+            trackEvent('start');
+        }
         const firstIndex = getNextStepIndex(-1);
         renderStep(firstIndex);
     });
@@ -798,6 +996,7 @@ jQuery(document).ready(function($) {
                     const message = data && data.data && data.data.message ? data.data.message : 'We could not send your request right now. Please try again in a moment.';
                     throw new Error(message);
                 }
+                journeyCompleted = true;
                 renderSuccessScreen(
                     data.data && typeof data.data.total !== 'undefined' ? data.data.total : null,
                     data.data && data.data.customer_email_status ? String(data.data.customer_email_status) : 'disabled'
@@ -806,6 +1005,7 @@ jQuery(document).ready(function($) {
             .catch((error) => {
                 $('#submission-error').text(error.message).show();
                 $btn.text(getTriggerLabel()).prop('disabled', false);
+                trackEvent('failure', error.message || 'Submission failed.');
             });
     });
 });

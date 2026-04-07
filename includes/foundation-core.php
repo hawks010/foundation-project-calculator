@@ -36,6 +36,32 @@ function foundation_get_default_sender_email() {
 	return foundation_get_default_notification_email();
 }
 
+function foundation_get_default_logo_url() {
+	return FOUNDATION_URL . 'assets/IMG_1089.png';
+}
+
+function foundation_is_default_plugin_logo_url( $url ) {
+	$path = wp_parse_url( (string) $url, PHP_URL_PATH );
+	if ( ! is_string( $path ) ) {
+		return false;
+	}
+
+	return (bool) preg_match( '#/wp-content/plugins/foundation-project-calculator[^/]*/assets/IMG_1089\.png$#', $path );
+}
+
+function foundation_migrate_default_asset_settings( $settings ) {
+	if ( ! is_array( $settings ) ) {
+		return $settings;
+	}
+
+	$logo_url = isset( $settings['logo_url'] ) ? (string) $settings['logo_url'] : '';
+	if ( '' === $logo_url || foundation_is_default_plugin_logo_url( $logo_url ) ) {
+		$settings['logo_url'] = foundation_get_default_logo_url();
+	}
+
+	return $settings;
+}
+
 function foundation_get_default_settings() {
 	return array(
 		'admin_email'                  => foundation_get_default_notification_email(),
@@ -50,7 +76,7 @@ function foundation_get_default_settings() {
 		'launch_button_label'          => 'Get a Quote',
 		'wizard_title'                 => 'Inkfire Project Calculator',
 		'currency_symbol'              => '£',
-		'logo_url'                     => FOUNDATION_URL . 'assets/IMG_1089.png',
+		'logo_url'                     => foundation_get_default_logo_url(),
 		'intro_image_url'              => 'https://inkfire.co.uk/wp-content/uploads/2025/12/250515_SCOPE-AWARDS_02_0489.jpg',
 		'intro_heading'                => 'Why choose Inkfire?',
 		'intro_text'                   => 'We’re a disabled-led team of 15+ with lived experience at the heart of everything we do. Our specialists bring decades of combined expertise across IT, web, creative and accessibility - delivering solutions that genuinely work for real people.',
@@ -80,7 +106,62 @@ function foundation_get_settings() {
 		$settings = array();
 	}
 
-	return wp_parse_args( $settings, foundation_get_default_settings() );
+	return foundation_migrate_default_asset_settings( wp_parse_args( $settings, foundation_get_default_settings() ) );
+}
+
+
+
+function foundation_get_default_metrics() {
+	return array(
+		'form_views'      => 0,
+		'form_starts'     => 0,
+		'responses_saved' => 0,
+		'saved_drafts'    => 0,
+		'incomplete'      => 0,
+		'failures'        => 0,
+		'last_failure'    => '',
+		'last_saved_draft'=> '',
+	);
+}
+
+function foundation_get_metrics() {
+	$metrics = get_option( 'foundation_form_metrics', array() );
+	if ( ! is_array( $metrics ) ) {
+		$metrics = array();
+	}
+	return wp_parse_args( $metrics, foundation_get_default_metrics() );
+}
+
+function foundation_register_default_metrics() {
+	$current = get_option( 'foundation_form_metrics', null );
+	if ( null === $current ) {
+		add_option( 'foundation_form_metrics', foundation_get_default_metrics() );
+		return;
+	}
+	if ( ! is_array( $current ) ) {
+		$current = array();
+	}
+	$merged = wp_parse_args( $current, foundation_get_default_metrics() );
+	if ( $merged !== $current ) {
+		update_option( 'foundation_form_metrics', $merged );
+	}
+}
+
+function foundation_increment_metric( $key, $amount = 1 ) {
+	$metrics = foundation_get_metrics();
+	if ( ! isset( $metrics[ $key ] ) ) {
+		$metrics[ $key ] = 0;
+	}
+	$metrics[ $key ] = max( 0, intval( $metrics[ $key ] ) + intval( $amount ) );
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
+}
+
+function foundation_set_metric_meta( $key, $value ) {
+	$metrics = foundation_get_metrics();
+	$metrics[ $key ] = is_scalar( $value ) ? sanitize_text_field( (string) $value ) : '';
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
 }
 
 function foundation_register_default_settings() {
@@ -94,7 +175,7 @@ function foundation_register_default_settings() {
 		$current = array();
 	}
 
-	$merged = wp_parse_args( $current, foundation_get_default_settings() );
+	$merged = foundation_migrate_default_asset_settings( wp_parse_args( $current, foundation_get_default_settings() ) );
 	if ( $merged !== $current ) {
 		update_option( 'foundation_form_settings', $merged );
 	}

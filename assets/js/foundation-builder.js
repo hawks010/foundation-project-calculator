@@ -73,7 +73,7 @@ jQuery(document).ready(function ($) {
 
     const appLayout = `
         <div class="foundation-header">
-            <h2>Customer Project Form Builder</h2><br>
+            <h2>Project Calculator Builder</h2><br>
             <div class="foundation-header-actions">
                 <button id="export-form-btn" class="button button-secondary" aria-label="Export form as JSON">Export JSON</button>
                 <button id="import-form-btn" class="button button-secondary" aria-label="Import form from JSON">Import JSON</button>
@@ -88,7 +88,7 @@ jQuery(document).ready(function ($) {
 
             <!-- LEFT: TOOLBOX -->
             <div class="builder-col toolbox" aria-label="Field toolbox">
-                <h3>Form Elements</h3>
+                <h3>Question types</h3>
 
                 <div class="toolbox-section">
                     <h4>Customer questions</h4>
@@ -265,10 +265,10 @@ jQuery(document).ready(function ($) {
             <!-- MIDDLE: CANVAS -->
             <div class="builder-col canvas" aria-label="Form preview">
                 <div class="step-manager-bar">
-                    <div id="step-tabs-container" class="step-tabs" role="tablist" aria-label="Screens"></div>
+                    <div id="step-tabs-container" class="step-tabs" role="tablist" aria-label="Steps"></div>
                     <button id="add-step-btn" class="button button-secondary add-step-btn" type="button" aria-label="Add new screen">
                         <span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span>
-                        Add screen
+                        Add step
                     </button>
                 </div>
 
@@ -277,11 +277,10 @@ jQuery(document).ready(function ($) {
 
             <!-- RIGHT: SETTINGS -->
             <div class="builder-col settings" aria-label="Settings panel">
-                <h3>Field settings</h3>
+                <h3>Selected question</h3>
                 <div id="settings-content" class="settings-content">
                     <p style="color:#888; text-align:center; margin-top:40px;">
-                        Select a field on the canvas to edit its settings,<br>
-                        or click a screen tab to change its title.
+                        Select a question to edit it below, or click a step to change its title and subtitle.
                     </p>
                 </div>
             </div>

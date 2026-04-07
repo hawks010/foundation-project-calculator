@@ -1,18 +1,17 @@
 # Changelog
 
-## 1.1.0
+## 1.3.0
 
-- imported the uploaded `v1.1.0` package into git on top of a live `v1.0.0` safety snapshot
-- added a bundled GitHub auto-updater using `plugin-update-checker`
-- added plugin metadata for `Plugin URI`, `Update URI`, WordPress, and PHP requirements
-- restricted builder REST reads to authenticated administrators instead of leaving them public
-- added server-side validation for required builder fields to match frontend rules
-- tightened upload validation so unknown upload fields and disallowed extensions are rejected
-- removed SVG from the default upload allowlist for safer first-run behaviour
-- fixed success-state messaging so customer email disabled and failed states are not reported as sent
-- improved mail fallback logic so placeholder sender addresses do not poison delivery defaults
-- removed uninstall cleanup for a legacy option this version does not create
-- confirmed PDF, JSON, and ZIP package generation on sandbox via WP-CLI
+- imported the uploaded `v1.3.0` admin redesign package into git
+- added the redesigned admin dashboard shell with dashboard, builder, settings, metrics, and theme switching
+- added frontend save/resume draft support with magic-link email flow
+- added lightweight journey metrics for views, starts, saved drafts, incomplete closes, failures, and completed submissions
+- fixed beta dark-mode shell behaviour so the admin dashboard renders on a real dark surface inside WordPress admin
+- hardened resume links so emailed draft links are constrained to the current site URL
+- added rate limiting for magic-link email sends
+- improved no-email save messaging so users always see a usable resume link
+- restored repo hygiene that was missing from the beta zip
+- noted that this package does not include React/Tailwind source tooling; the redesign is shipped as PHP, vanilla JS, and CSS in the plugin
 
 ## 1.0.0
 

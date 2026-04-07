@@ -693,3 +693,7 @@ select[aria-invalid="true"] {
         width: 100%;
     }
 }
+
+
+.wizard-controls { flex-wrap: wrap; }
+.foundation-form-actions { flex-wrap: wrap; }
