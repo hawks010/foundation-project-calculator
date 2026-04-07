@@ -3,15 +3,19 @@
 ## 1.3.0
 
 - imported the uploaded `v1.3.0` admin redesign package into git
-- added the redesigned admin dashboard shell with dashboard, builder, settings, metrics, and theme switching
+- replaced the legacy PHP/jQuery admin builder with a React/Tailwind admin app
+- added a scoped Vite build that outputs production assets to `assets/admin`
+- reset dark/light theme colors around a consistent admin surface instead of patching the legacy shell
+- added staff-friendly slide editing with drag/drop, keyboard move controls, duplicate/remove actions, and empty states
+- added a service-option inspector for labels, prices, and route-to-slide controls so backend and frontend stay aligned
+- added frontend sync warnings for missing budget, timeline, services, empty options, and broken route targets
+- added legacy metadata inference so existing budget/timeline/service fields are normalized into the roles the frontend expects
 - added frontend save/resume draft support with magic-link email flow
 - added lightweight journey metrics for views, starts, saved drafts, incomplete closes, failures, and completed submissions
-- fixed beta dark-mode shell behaviour so the admin dashboard renders on a real dark surface inside WordPress admin
 - hardened resume links so emailed draft links are constrained to the current site URL
 - added rate limiting for magic-link email sends
 - improved no-email save messaging so users always see a usable resume link
 - restored repo hygiene that was missing from the beta zip
-- noted that this package does not include React/Tailwind source tooling; the redesign is shipped as PHP, vanilla JS, and CSS in the plugin
 
 ## 1.0.0
 

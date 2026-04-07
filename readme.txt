@@ -23,7 +23,8 @@ Key features:
 * Frontend branding controls for intro copy, imagery, success messaging, and customer CTA links.
 * Improved sanitisation and safer saved builder data.
 * Accessible frontend improvements including clearer validation, focus management, and keyboard support.
-* Admin dashboard redesign with metrics, builder/settings navigation, and dark/light theme switching.
+* React/Tailwind admin builder with metrics, builder/settings navigation, and clean dark/light theme switching.
+* Staff-friendly slide editing with drag/drop, keyboard move controls, and service-option routing.
 * Save/resume draft flow with magic-link email support.
 * GitHub-based auto-updates using bundled `plugin-update-checker`.
 
@@ -52,13 +53,14 @@ This is useful when you want to launch the form with your own trigger using `.fo
 * The builder stores sanitised form definitions in the `foundation_form_data` option.
 * SVG is excluded from the default upload allowlist for safety.
 * Automatic updates expect tagged GitHub releases.
-* Version 1.3.0 does not ship React/Tailwind source tooling; the dashboard is implemented in plugin PHP, vanilla JavaScript, and CSS.
+* Admin source lives in `src/admin`; production assets are built to `assets/admin`.
 
 == Changelog ==
 
 = 1.3.0 =
-* Added the redesigned admin dashboard shell with metrics and dashboard/builder navigation.
-* Added dark/light theme switching for the dashboard and fixed the dark-mode shell background.
+* Rebuilt the admin builder in React and Tailwind with metrics and dashboard/builder navigation.
+* Reset dark/light theme colors for a scoped, consistent admin UI.
+* Added staff-friendly slide editing, drag/drop reordering, keyboard move controls, and service routing controls.
 * Added save/resume drafts with magic-link email support.
 * Added journey metrics for views, starts, saved drafts, incomplete closes, failures, and completed submissions.
 * Hardened resume links so emailed draft links are constrained to the current site URL.

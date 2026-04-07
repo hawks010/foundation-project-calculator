@@ -34,12 +34,16 @@
 
 ## v1.3.0 rollout status
 
-- The `v1.3.0` admin redesign package is being finalised on `codex/finalise-v1-3-0-admin-redesign`
-- Blueprint server-side smoke testing has passed
+- The `v1.3.0` admin redesign package is being rebuilt on `codex/finalise-v1-3-0-admin-redesign`
+- The uploaded beta did not include React/Tailwind source tooling, so this branch now adds a real React/Tailwind/Vite admin builder under `src/admin`
+- Production assets are built to `assets/admin`
+- Previous blueprint server-side smoke testing passed before the React rebuild
+- This React rebuild still needs to be refreshed onto blueprint before final manual browser QA
 - Do not deploy `v1.3.0` to production before manual browser QA
-- The uploaded beta does not include React/Tailwind source tooling; it ships as PHP, vanilla JS, and CSS inside the WordPress plugin
 
 ## Blueprint v1.3.0 smoke test results
+
+Previous beta results before this React rebuild:
 
 - Activation passed
 - Frontend render uses `foundation-project-calculator-v130` assets
@@ -53,6 +57,14 @@
 - Invalid upload rejected `.php`
 - Controlled submission returned `admin_sent=true` and `customer_sent=true`
 - Metrics updated for saved drafts and successful submissions
+
+React rebuild local results:
+
+- `npm run build` passed
+- Built JS syntax check passed
+- PHP lint passed across all plugin PHP files
+- Legacy builder assets are no longer referenced by the admin enqueue path
+- Blueprint REST role check passed after refresh: `field_budget:budget:budget`, `field_timeline:timeline:timeline`, `field_services_main:services_main:services`
 
 ## Sandbox status after v1.1.0 QA
 

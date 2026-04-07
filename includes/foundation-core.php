@@ -325,8 +325,30 @@ function foundation_normalize_form_data( $steps ) {
 					if ( ! in_array( $variant, $allowed_variants, true ) ) {
 						$variant = 'services';
 					}
+					$role       = sanitize_key( $field['role'] ?? '' );
+					$field_hint = strtolower( $field_id . ' ' . wp_strip_all_tags( (string) ( $field['label'] ?? '' ) ) );
+
+					// Older builder exports sometimes stored core budget/timeline pickers as generic services.
+					if ( '' === $role ) {
+						if ( false !== strpos( $field_hint, 'budget' ) ) {
+							$role    = 'budget';
+							$variant = 'budget';
+						} elseif ( false !== strpos( $field_hint, 'timeline' ) || false !== strpos( $field_hint, 'when would you like to start' ) ) {
+							$role    = 'timeline';
+							$variant = 'timeline';
+						} elseif ( false !== strpos( $field_id, 'services_main' ) || false !== strpos( $field_hint, 'which services' ) || false !== strpos( $field_hint, 'services do you need' ) ) {
+							$role    = 'services_main';
+							$variant = 'services';
+						}
+					}
+					if ( 'budget' === $role ) {
+						$variant = 'budget';
+					} elseif ( 'timeline' === $role ) {
+						$variant = 'timeline';
+					}
+
 					$normalized_field['variant'] = $variant;
-					$normalized_field['role']    = sanitize_key( $field['role'] ?? '' );
+					$normalized_field['role']    = $role;
 					$normalized_field['options'] = array();
 					$options = isset( $field['options'] ) && is_array( $field['options'] ) ? $field['options'] : array();
 					foreach ( $options as $option ) {

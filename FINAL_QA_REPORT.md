@@ -19,7 +19,7 @@ Date: 2026-04-07
 
 ## Summary
 
-The uploaded `v1.3.0` beta has been imported for review. The beta does not include a React source tree, Tailwind config, Vite config, or package manifest; the shipped implementation is PHP, vanilla JS, and CSS. The admin dashboard redesign is therefore being finalised as a WordPress plugin patch rather than as a React/Tailwind source build.
+The uploaded `v1.3.0` beta was imported for review, then the backend builder was rebuilt as a React/Tailwind admin app because the uploaded package did not actually contain the expected React source. The new app uses Vite, scoped Tailwind styles, clean light/dark theme tokens, slide-level editing, drag/drop reordering, keyboard move controls, and a service routing inspector that writes to the same `foundation_form_data` schema used by the public calculator.
 
 Production currently remains on `foundation-project-calculator-v110` at `1.1.0`, with the older `foundation-project-calculator` at `1.0.0` still installed and inactive. A `foundation-project-calculator-v130` copy is present on production but inactive. Blueprint is running the separate `foundation-project-calculator-v130` copy for smoke testing, with `foundation-project-calculator-v110` left installed and inactive there as rollback.
 
@@ -30,12 +30,19 @@ Production currently remains on `foundation-project-calculator-v110` at `1.1.0`,
 - Local repo import on `codex/finalise-v1-3-0-admin-redesign`
 - Confirmed beta package structure
 - Confirmed no React/Tailwind source tooling is bundled
+- Added React/Tailwind/Vite admin source under `src/admin`
+- Built production admin assets to `assets/admin/admin-app.js` and `assets/admin/admin-app.css`
+- Removed the unused legacy jQuery builder assets from the active package
 - Restored `.gitignore` that was missing from the uploaded package
 - PHP lint passed on all plugin PHP files
-- JS syntax checks passed for `foundation-builder.js` and `foundation-frontend.js`
+- `npm run build` passed for the React/Tailwind admin app
+- JS syntax check passed for the built `assets/admin/admin-app.js`
 - `git diff --check` passed
 - Bundled updater parser dependencies are now tracked for GitHub/source release packaging
-- Dark-mode dashboard shell now has a real themed background inside WordPress admin
+- Dark/light admin theme colors have been reset around scoped app variables
+- Slide editing, field editing, service-option pricing, and route-to-slide controls are present in the React app
+- Frontend sync warnings are present for missing core fields and broken route targets
+- Legacy budget/timeline/service fields are now normalized into frontend-safe roles on REST read/save
 - Resume-link base URL is constrained to the current WordPress site
 - Magic-link email sends are rate-limited
 - Invalid magic-link email requests are rejected before draft storage and metrics mutation
@@ -65,6 +72,7 @@ Production currently remains on `foundation-project-calculator-v110` at `1.1.0`,
 
 - Full admin dashboard dark/light mode pass
 - Builder journey by a non-technical editor
+- React builder save/import/export pass on blueprint after redeploying this rebuild
 - Full visual pass of the calculator modal on desktop and mobile
 - Keyboard-only journey through every step
 - Focus order and focus return after close
@@ -74,7 +82,7 @@ Production currently remains on `foundation-project-calculator-v110` at `1.1.0`,
 
 ## Recommendation
 
-Safe to keep testing on blueprint. Not yet recommended for production until a short manual browser pass confirms the dashboard and public calculator visually.
+Safe to redeploy to blueprint for testing. Not yet recommended for production until a short manual browser pass confirms the rebuilt React admin and public calculator visually.
 
 Do not activate `v1.3.0` on production until:
 
