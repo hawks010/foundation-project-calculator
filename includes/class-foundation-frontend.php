@@ -43,6 +43,13 @@ class Foundation_Frontend {
 
 		$form_data = foundation_normalize_form_data( get_option( 'foundation_form_data', array() ) );
 		$settings  = foundation_get_settings();
+		$resume_base_url = '';
+		if ( function_exists( 'get_permalink' ) ) {
+			$resume_base_url = get_permalink();
+		}
+		if ( empty( $resume_base_url ) ) {
+			$resume_base_url = home_url( '/' );
+		}
 
 		wp_localize_script(
 			'foundation-frontend-js',
@@ -64,6 +71,10 @@ class Foundation_Frontend {
 					'testimonialQuote'    => $settings['testimonial_quote'],
 					'testimonialAttribution' => $settings['testimonial_attribution'],
 					'successMessage'       => $settings['success_message'],
+				),
+				'resume' => array(
+					'baseUrl'     => esc_url_raw( $resume_base_url ),
+					'queryParam'  => 'foundation_resume',
 				),
 				'uploads' => array(
 					'allowedTypes'    => foundation_parse_allowed_extensions( $settings ),

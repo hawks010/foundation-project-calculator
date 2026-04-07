@@ -10,7 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Foundation_Settings {
 
 	public function __construct() {
-		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 	}
 
@@ -37,30 +36,31 @@ class Foundation_Settings {
 	public function render_settings_page() {
 		$settings = foundation_get_settings();
 		?>
-		<div class="wrap foundation-settings-wrap">
+		<div class="wrap foundation-settings-wrap" data-foundation-settings-shell>
 			<style>
-				.foundation-settings-wrap { max-width: 1240px; margin-top: 24px; }
-				.foundation-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-top: 20px; }
-				.foundation-settings-card { background: #fff; border: 1px solid #dfe3e8; border-radius: 20px; padding: 24px; box-shadow: 0 10px 30px rgba(15,23,42,.05); }
-				.foundation-settings-card h2 { margin-top: 0; font-size: 1.2rem; }
-				.foundation-settings-card p.description { margin-top: 0; color: #52606d; }
-				.foundation-settings-field { margin-bottom: 18px; }
-				.foundation-settings-field label { display: block; font-weight: 700; margin-bottom: 7px; }
-				.foundation-settings-field input[type="text"],
-				.foundation-settings-field input[type="email"],
-				.foundation-settings-field input[type="number"],
-				.foundation-settings-field textarea { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #c6cdd4; }
-				.foundation-settings-field textarea { min-height: 110px; }
-				.foundation-settings-note { background: #f6fbfa; border: 1px solid #cfe8df; color: #174a3b; padding: 14px 16px; border-radius: 14px; }
-				.foundation-settings-actions { display: flex; align-items: center; gap: 14px; margin-top: 24px; }
-				.foundation-settings-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #eef6ff; color: #114c7c; font-weight: 600; }
-				@media (prefers-reduced-motion: no-preference) { .foundation-settings-card { transition: transform .2s ease, box-shadow .2s ease; } .foundation-settings-card:hover { transform: translateY(-2px); box-shadow: 0 14px 35px rgba(15,23,42,.08); } }
-			</style>
+	.foundation-settings-wrap { max-width: 1380px; margin-top: 24px; --fs-bg:#eef3f7; --fs-surface:#fff; --fs-border:#dbe4eb; --fs-text:#0f172a; --fs-muted:#52606d; --fs-accent:#0f766e; }
+	.foundation-settings-wrap h1 { margin-bottom: 10px; }
+	.foundation-settings-shell { display:grid; grid-template-columns: 240px minmax(0,1fr); gap: 22px; }
+	.foundation-settings-rail { align-self:start; position:sticky; top:32px; padding:18px; border-radius:28px; border:1px solid var(--fs-border); background:var(--fs-surface); box-shadow:0 20px 50px rgba(15,23,42,.08); }
+	.foundation-settings-rail h2 { margin:0 0 8px; font-size: 1rem; }
+	.foundation-settings-rail p { margin:0; color:var(--fs-muted); font-size:13px; line-height:1.6; }
+	.foundation-settings-wrap .foundation-settings-main { min-width:0; }
+	.foundation-settings-note { background: #f6fbfa; border: 1px solid #cfe8df; color: #174a3b; padding: 14px 16px; border-radius: 14px; }
+	.foundation-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 24px; margin-top: 20px; }
+	.foundation-settings-card { background: #fff; border: 1px solid var(--fs-border); border-radius: 24px; padding: 24px; box-shadow: 0 10px 30px rgba(15,23,42,.05); }
+	.foundation-settings-card h2 { margin-top: 0; font-size: 1.2rem; }
+	.foundation-settings-card p.description { margin-top: 0; color: var(--fs-muted); }
+	.foundation-settings-field { margin-bottom: 18px; }
+	.foundation-settings-field label { display: block; font-weight: 700; margin-bottom: 7px; color: var(--fs-text); }
+	.foundation-settings-field input[type="text"], .foundation-settings-field input[type="email"], .foundation-settings-field input[type="number"], .foundation-settings-field textarea { width: 100%; padding: 12px 14px; border-radius: 14px; border: 1px solid #c6cdd4; }
+	.foundation-settings-field textarea { min-height: 110px; }
+	.foundation-settings-actions { display: flex; align-items: center; gap: 14px; margin-top: 24px; }
+	.foundation-settings-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: #eef6ff; color: #114c7c; font-weight: 600; }
+	@media (prefers-reduced-motion: no-preference) { .foundation-settings-card { transition: transform .2s ease, box-shadow .2s ease; } .foundation-settings-card:hover { transform: translateY(-2px); box-shadow: 0 14px 35px rgba(15,23,42,.08); } }
+	@media (max-width: 1180px){ .foundation-settings-shell{ grid-template-columns: 1fr; } .foundation-settings-rail{ position: static; } }
+</style>
 
-			<h1><?php esc_html_e( 'Foundation Project Calculator Settings', 'foundation-customer-form' ); ?></h1>
-			<p class="foundation-settings-note">These settings control who receives new leads, what your customer sees, and how uploaded files are packaged for staff. The builder controls the questions. This page controls the plumbing.</p>
-
-			<form method="post" action="options.php">
+			<div class="foundation-settings-shell"><aside class="foundation-settings-rail"><h2><?php esc_html_e( 'Calculator Settings', 'foundation-customer-form' ); ?></h2><p><?php esc_html_e( 'Builder for flow. Settings for the plumbing. This page keeps email, branding, uploads and customer copy tidy in one place.', 'foundation-customer-form' ); ?></p><div class="foundation-settings-actions" style="margin-top:18px;flex-direction:column;align-items:stretch;"><a class="button button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=foundation-form-builder' ) ); ?>"><?php esc_html_e( 'Back to dashboard', 'foundation-customer-form' ); ?></a></div></aside><div class="foundation-settings-main"><h1><?php esc_html_e( 'Foundation Project Calculator Settings', 'foundation-customer-form' ); ?></h1><p class="foundation-settings-note">These settings control who receives new leads, what your customer sees, and how uploaded files are packaged for staff. The builder controls the questions. This page controls the plumbing.</p><form method="post" action="options.php">
 				<?php settings_fields( 'foundation_form_settings_group' ); ?>
 				<div class="foundation-settings-grid">
 					<div class="foundation-settings-card">
@@ -122,8 +122,7 @@ class Foundation_Settings {
 					<?php submit_button( __( 'Save settings', 'foundation-customer-form' ), 'primary', 'submit', false ); ?>
 					<a class="button button-secondary" href="<?php echo esc_url( admin_url( 'admin.php?page=foundation-form-builder' ) ); ?>"><?php esc_html_e( 'Back to builder', 'foundation-customer-form' ); ?></a>
 				</div>
-			</form>
-		</div>
+			</form></div></div>
 		<?php
 	}
 

@@ -9,6 +9,129 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 add_action( 'wp_ajax_foundation_submit_quote', 'foundation_process_quote' );
 add_action( 'wp_ajax_nopriv_foundation_submit_quote', 'foundation_process_quote' );
+add_action( 'wp_ajax_foundation_track_quote_event', 'foundation_track_quote_event' );
+add_action( 'wp_ajax_nopriv_foundation_track_quote_event', 'foundation_track_quote_event' );
+add_action( 'wp_ajax_foundation_save_quote_draft', 'foundation_save_quote_draft' );
+add_action( 'wp_ajax_nopriv_foundation_save_quote_draft', 'foundation_save_quote_draft' );
+add_action( 'wp_ajax_foundation_resume_quote_draft', 'foundation_resume_quote_draft' );
+add_action( 'wp_ajax_nopriv_foundation_resume_quote_draft', 'foundation_resume_quote_draft' );
+
+
+function foundation_track_quote_event() {
+	check_ajax_referer( 'foundation_nonce', 'nonce' );
+	$event = sanitize_key( wp_unslash( $_POST['event'] ?? '' ) );
+	$map = array(
+		'view'       => 'form_views',
+		'start'      => 'form_starts',
+		'incomplete' => 'incomplete',
+		'failure'    => 'failures',
+	);
+	if ( empty( $map[ $event ] ) ) {
+		wp_send_json_success( array( 'tracked' => false ) );
+	}
+	foundation_increment_metric( $map[ $event ] );
+	if ( 'failure' === $event ) {
+		$message = sanitize_text_field( wp_unslash( $_POST['message'] ?? '' ) );
+		if ( '' !== $message ) {
+			foundation_set_metric_meta( 'last_failure', $message );
+		}
+	}
+	wp_send_json_success( array( 'tracked' => true ) );
+}
+
+function foundation_generate_resume_token() {
+	return wp_generate_password( 32, false, false );
+}
+
+function foundation_get_resume_url( $token, $base_url = '' ) {
+	if ( empty( $base_url ) ) {
+		$base_url = home_url( '/' );
+	}
+	return add_query_arg( 'foundation_resume', rawurlencode( $token ), $base_url );
+}
+
+function foundation_normalize_resume_base_url( $base_url ) {
+	$home_host = wp_parse_url( home_url( '/' ), PHP_URL_HOST );
+	$base_host = wp_parse_url( $base_url, PHP_URL_HOST );
+	if ( empty( $base_url ) || empty( $base_host ) || strtolower( (string) $base_host ) !== strtolower( (string) $home_host ) ) {
+		return home_url( '/' );
+	}
+
+	return esc_url_raw( remove_query_arg( 'foundation_resume', $base_url ) );
+}
+
+function foundation_save_quote_draft() {
+	check_ajax_referer( 'foundation_nonce', 'nonce' );
+	$token = sanitize_text_field( wp_unslash( $_POST['token'] ?? '' ) );
+	$raw_contact = isset( $_POST['contact'] ) ? wp_unslash( $_POST['contact'] ) : array();
+	$raw_selections = isset( $_POST['selections'] ) ? wp_unslash( $_POST['selections'] ) : array();
+	$current_step = intval( $_POST['current_step'] ?? -1 );
+	$resume_base = foundation_normalize_resume_base_url( esc_url_raw( wp_unslash( $_POST['resume_base'] ?? home_url( '/' ) ) ) );
+	$send_email  = ! empty( $_POST['send_email'] ) && '1' === (string) wp_unslash( $_POST['send_email'] );
+	$contact = array(
+		'name'    => sanitize_text_field( $raw_contact['name'] ?? '' ),
+		'email'   => sanitize_email( $raw_contact['email'] ?? '' ),
+		'phone'   => sanitize_text_field( $raw_contact['phone'] ?? '' ),
+		'company' => sanitize_text_field( $raw_contact['company'] ?? '' ),
+		'website' => esc_url_raw( $raw_contact['website'] ?? '' ),
+	);
+	$selections = foundation_sanitize_submission_selections( $raw_selections );
+	if ( $send_email ) {
+		if ( ! is_email( $contact['email'] ) ) {
+			wp_send_json_error( array( 'message' => 'Please enter a valid email address before sending a magic link.' ), 422 );
+		}
+
+		$draft_rate_limit_key = 'foundation_draft_' . md5( strtolower( $contact['email'] ) . '|' . foundation_get_request_ip() );
+		if ( false !== get_transient( $draft_rate_limit_key ) ) {
+			wp_send_json_error( array( 'message' => 'Please wait a moment before sending another magic link.' ), 429 );
+		}
+		set_transient( $draft_rate_limit_key, 1, 60 );
+	}
+	if ( empty( $token ) ) {
+		$token = foundation_generate_resume_token();
+	}
+	$payload = array(
+		'token'        => $token,
+		'contact'      => $contact,
+		'selections'   => $selections,
+		'current_step' => max( -1, $current_step ),
+		'updated_at'   => current_time( 'mysql' ),
+	);
+	set_transient( 'foundation_quote_draft_' . $token, $payload, 14 * DAY_IN_SECONDS );
+	foundation_increment_metric( 'saved_drafts' );
+	if ( ! empty( $contact['email'] ) ) {
+		foundation_set_metric_meta( 'last_saved_draft', $contact['email'] . ' · ' . current_time( 'M j, Y g:i a' ) );
+	}
+	$resume_url = foundation_get_resume_url( $token, $resume_base );
+	$email_sent = false;
+	if ( $send_email ) {
+		$settings = foundation_get_settings();
+		$headers = array( 'Content-Type: text/html; charset=UTF-8' );
+		if ( ! empty( $settings['from_name'] ) && ! empty( $settings['from_email'] ) && ! foundation_is_placeholder_email( $settings['from_email'] ) ) {
+			$headers[] = 'From: ' . wp_specialchars_decode( $settings['from_name'], ENT_QUOTES ) . ' <' . $settings['from_email'] . '>';
+		}
+		$subject = 'Resume your project brief';
+		$body = '<p>Hi ' . esc_html( $contact['name'] ? $contact['name'] : 'there' ) . ',</p>';
+		$body .= '<p>You can resume your saved project brief using the secure link below:</p>';
+		$body .= '<p><a href="' . esc_url( $resume_url ) . '">' . esc_html( $resume_url ) . '</a></p>';
+		$body .= '<p>Your answers were saved, but any uploaded files will need to be added again when you return.</p>';
+		$email_sent = wp_mail( $contact['email'], $subject, $body, $headers );
+	}
+	wp_send_json_success( array( 'token' => $token, 'resume_url' => $resume_url, 'email_sent' => $email_sent ) );
+}
+
+function foundation_resume_quote_draft() {
+	check_ajax_referer( 'foundation_nonce', 'nonce' );
+	$token = sanitize_text_field( wp_unslash( $_REQUEST['token'] ?? '' ) );
+	if ( empty( $token ) ) {
+		wp_send_json_error( array( 'message' => 'Draft token not found.' ), 404 );
+	}
+	$payload = get_transient( 'foundation_quote_draft_' . $token );
+	if ( empty( $payload ) || ! is_array( $payload ) ) {
+		wp_send_json_error( array( 'message' => 'This saved draft has expired or could not be found.' ), 404 );
+	}
+	wp_send_json_success( $payload );
+}
 
 function foundation_process_quote() {
 	check_ajax_referer( 'foundation_nonce', 'nonce' );
@@ -30,10 +153,14 @@ function foundation_process_quote() {
 	);
 
 	if ( '' === $contact['name'] || '' === $contact['email'] || '' === $contact['phone'] || '' === $contact['company'] ) {
+		foundation_increment_metric( 'failures' );
+		foundation_set_metric_meta( 'last_failure', 'Missing required contact fields.' );
 		wp_send_json_error( array( 'message' => 'Please complete your name, company, email and phone number.' ), 422 );
 	}
 
 	if ( ! is_email( $contact['email'] ) ) {
+		foundation_increment_metric( 'failures' );
+		foundation_set_metric_meta( 'last_failure', 'Invalid email address.' );
 		wp_send_json_error( array( 'message' => 'Please enter a valid email address.' ), 422 );
 	}
 
@@ -51,6 +178,8 @@ function foundation_process_quote() {
 
 	$uploaded_result = foundation_collect_uploaded_files( $settings, $steps );
 	if ( ! empty( $uploaded_result['errors'] ) ) {
+		foundation_increment_metric( 'failures' );
+		foundation_set_metric_meta( 'last_failure', implode( ' ', $uploaded_result['errors'] ) );
 		wp_send_json_error( array( 'message' => implode( ' ', $uploaded_result['errors'] ) ), 422 );
 	}
 	$uploaded_files = $uploaded_result['files'];
@@ -58,6 +187,8 @@ function foundation_process_quote() {
 	$selections = foundation_sanitize_submission_selections( $raw_selections );
 	$missing_required = foundation_validate_required_submission_fields( $steps, $selections, $uploaded_files );
 	if ( ! empty( $missing_required ) ) {
+		foundation_increment_metric( 'failures' );
+		foundation_set_metric_meta( 'last_failure', 'Missing required fields: ' . implode( ', ', $missing_required ) . '.' );
 		wp_send_json_error( array( 'message' => 'Please complete the required fields: ' . implode( ', ', $missing_required ) . '.' ), 422 );
 	}
 
@@ -75,6 +206,8 @@ function foundation_process_quote() {
 	}
 
 	if ( ! empty( $missing_core ) ) {
+		foundation_increment_metric( 'failures' );
+		foundation_set_metric_meta( 'last_failure', 'Missing core selections: ' . implode( ', ', $missing_core ) . '.' );
 		wp_send_json_error( array( 'message' => 'Please complete your ' . implode( ', ', $missing_core ) . ' before requesting a quote.' ), 422 );
 	}
 
@@ -146,9 +279,12 @@ function foundation_process_quote() {
 	foundation_cleanup_temp_files( array( $pdf_path, $json_path, $zip_path ) );
 
 	if ( ! $admin_sent ) {
+		foundation_increment_metric( 'failures' );
+		foundation_set_metric_meta( 'last_failure', 'Admin email could not be sent.' );
 		wp_send_json_error( array( 'message' => 'The quote email could not be sent right now. Please try again shortly.' ), 500 );
 	}
 
+	foundation_increment_metric( 'responses_saved' );
 	wp_send_json_success(
 		array(
 			'total'         => $total_price,
