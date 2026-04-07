@@ -533,7 +533,7 @@ function App() {
         if (!response.ok) throw new Error(`Save failed with ${response.status}`);
         return response.json();
       })
-      .then(() => setStatus({ type: 'success', message: 'Saved. The frontend calculator is now using this structure.' }))
+      .then(() => setStatus({ type: 'success', message: 'Saved to frontend.' }))
       .catch((error) => setStatus({ type: 'error', message: error.message || 'Save failed.' }));
   }
 
@@ -568,7 +568,7 @@ function App() {
 
   return (
     <div className={classNames('foundation-app-root', theme === 'dark' ? 'fp-theme-dark' : 'fp-theme-light')}>
-      <div className="min-h-[calc(100vh-92px)] rounded-[30px] bg-[var(--fp-bg)] p-5 text-[var(--fp-text)] shadow-soft transition-colors duration-300 md:p-8">
+      <div className="min-h-[calc(100vh-92px)] rounded-[30px] bg-[var(--fp-bg)] p-4 text-[var(--fp-text)] shadow-soft transition-colors duration-300 md:p-5">
         <Header
           config={config}
           panel={panel}
@@ -584,7 +584,7 @@ function App() {
         {panel === 'dashboard' ? (
           <Dashboard metrics={metrics} journey={journey} config={config} warnings={warnings} />
         ) : (
-          <main className="grid gap-5 xl:grid-cols-[290px_minmax(0,1fr)_380px]">
+          <main className="grid gap-4 xl:grid-cols-[250px_minmax(0,1fr)]">
             <SlideRail
               steps={steps}
               activeStepId={activeStep?.id || ''}
@@ -598,30 +598,32 @@ function App() {
               setDragState={setDragState}
             />
 
-            <BuilderCanvas
-              activeStep={activeStep}
-              activeStepIndex={activeStepIndex}
-              selectedFieldId={selectedFieldId}
-              setSelectedFieldId={setSelectedFieldId}
-              addFieldFromBlueprint={addFieldFromBlueprint}
-              removeField={removeField}
-              moveField={moveField}
-              dragState={dragState}
-              setDragState={setDragState}
-            />
+            <div className="grid min-w-0 gap-4 2xl:grid-cols-[minmax(0,1fr)_340px]">
+              <BuilderCanvas
+                activeStep={activeStep}
+                activeStepIndex={activeStepIndex}
+                selectedFieldId={selectedFieldId}
+                setSelectedFieldId={setSelectedFieldId}
+                addFieldFromBlueprint={addFieldFromBlueprint}
+                removeField={removeField}
+                moveField={moveField}
+                dragState={dragState}
+                setDragState={setDragState}
+              />
 
-            <Inspector
-              steps={steps}
-              activeStep={activeStep}
-              selectedField={selectedField}
-              updateStep={updateStep}
-              updateSelectedField={updateSelectedField}
-              updateServiceOption={updateServiceOption}
-              addOption={addOption}
-              removeOption={removeOption}
-              moveOption={moveOption}
-              warnings={warnings}
-            />
+              <Inspector
+                steps={steps}
+                activeStep={activeStep}
+                selectedField={selectedField}
+                updateStep={updateStep}
+                updateSelectedField={updateSelectedField}
+                updateServiceOption={updateServiceOption}
+                addOption={addOption}
+                removeOption={removeOption}
+                moveOption={moveOption}
+                warnings={warnings}
+              />
+            </div>
           </main>
         )}
       </div>
@@ -631,41 +633,40 @@ function App() {
 
 function Header({ config, panel, setPanel, theme, setTheme, status, onSave, onExport, onImport }) {
   return (
-    <header className="mb-5 overflow-hidden rounded-[28px] border border-[var(--fp-border)] bg-[var(--fp-panel)] shadow-[var(--fp-panel-shadow)]">
-      <div className="flex flex-col gap-5 border-b border-[var(--fp-border)] px-5 py-5 lg:flex-row lg:items-center lg:justify-between lg:px-7">
+    <header className="mb-4 overflow-hidden rounded-[24px] border border-[var(--fp-border)] bg-[var(--fp-panel)] shadow-[var(--fp-panel-shadow)]">
+      <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
         <div className="flex items-center gap-4">
           {config.logoUrl ? (
-            <img className="h-14 w-14 object-contain drop-shadow-md" src={config.logoUrl} alt="" />
+            <img className="h-11 w-11 object-contain drop-shadow-md" src={config.logoUrl} alt="" />
           ) : null}
           <div>
-            <p className="m-0 text-xs font-black uppercase tracking-[0.28em] text-[var(--fp-accent)]">Foundation</p>
-            <h1 className="m-0 text-2xl font-black tracking-[-0.03em] text-[var(--fp-heading)] md:text-3xl">Project Calculator Builder</h1>
-            <p className="m-0 mt-1 max-w-3xl text-sm leading-6 text-[var(--fp-muted)]">
-              Edit slides, questions, service routing, and pricing in the same schema used by the public calculator.
-            </p>
+            <p className="m-0 text-[0.68rem] font-black uppercase tracking-[0.28em] text-[var(--fp-accent)]">Foundation</p>
+            <h1 className="m-0 text-xl font-black tracking-[-0.03em] text-[var(--fp-heading)] md:text-2xl">Project Calculator</h1>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <button className={classNames('fp-tab', panel === 'dashboard' && 'is-active')} type="button" onClick={() => setPanel('dashboard')}>Dashboard</button>
-          <button className={classNames('fp-tab', panel === 'builder' && 'is-active')} type="button" onClick={() => setPanel('builder')}>Builder</button>
-          {config.settingsUrl ? <a className="fp-button fp-button-ghost" href={config.settingsUrl}>Settings</a> : null}
-          <button className="fp-button fp-button-ghost" type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <nav className="fp-segmented" aria-label="Foundation admin sections">
+            <button className={classNames('fp-tab', panel === 'dashboard' && 'is-active')} type="button" onClick={() => setPanel('dashboard')}>Dashboard</button>
+            <button className={classNames('fp-tab', panel === 'builder' && 'is-active')} type="button" onClick={() => setPanel('builder')}>Builder</button>
+            {config.settingsUrl ? <a className="fp-tab" href={config.settingsUrl}>Settings</a> : null}
+          </nav>
+          <button className="fp-button fp-button-ghost fp-button-compact" type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
+            {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
           <span className="rounded-full bg-[var(--fp-chip)] px-3 py-1 text-xs font-black text-[var(--fp-chip-text)]">v{config.pluginVersion || '1.3.0'}</span>
         </div>
       </div>
-      <div className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between lg:px-7">
+      <div className="flex flex-col gap-3 border-t border-[var(--fp-border)] px-5 py-3 md:flex-row md:items-center md:justify-between lg:px-6">
         <div className={classNames('fp-status', status.type === 'success' && 'is-success', status.type === 'error' && 'is-error')} role="status" aria-live="polite">
           {status.message}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="fp-button fp-button-ghost" type="button" onClick={onExport}>Export JSON</button>
-          <label className="fp-button fp-button-ghost cursor-pointer">
-            Import JSON
+          <button className="fp-button fp-button-ghost fp-button-compact" type="button" onClick={onExport}>Export</button>
+          <label className="fp-button fp-button-ghost fp-button-compact cursor-pointer">
+            Import
             <input className="sr-only" type="file" accept="application/json,.json" onChange={onImport} />
           </label>
-          <button className="fp-button fp-button-primary" type="button" onClick={onSave}>Save to frontend</button>
+          <button className="fp-button fp-button-primary fp-button-compact" type="button" onClick={onSave}>Save</button>
         </div>
       </div>
     </header>
@@ -749,11 +750,11 @@ function SlideRail({ steps, activeStepId, setActiveStepId, setSelectedFieldId, a
             <span className="text-xs font-black uppercase tracking-[0.2em] text-[var(--fp-accent)]">Slide {index + 1}</span>
             <strong>{step.title || 'Untitled slide'}</strong>
             <small>{step.fields.length} question{step.fields.length === 1 ? '' : 's'} {step.is_conditional ? ' / routed' : ''}</small>
-            <span className="mt-3 flex gap-2">
-              <span className="fp-mini-action" onClick={(event) => { event.stopPropagation(); moveStep(index, index - 1); }}>Up</span>
-              <span className="fp-mini-action" onClick={(event) => { event.stopPropagation(); moveStep(index, index + 1); }}>Down</span>
+            <span className="fp-card-actions" aria-label={`Slide ${index + 1} actions`}>
+              <span className="fp-mini-action" title="Move up" onClick={(event) => { event.stopPropagation(); moveStep(index, index - 1); }}>↑</span>
+              <span className="fp-mini-action" title="Move down" onClick={(event) => { event.stopPropagation(); moveStep(index, index + 1); }}>↓</span>
               <span className="fp-mini-action" onClick={(event) => { event.stopPropagation(); duplicateStep(step.id); }}>Copy</span>
-              <span className="fp-mini-action danger" onClick={(event) => { event.stopPropagation(); removeStep(step.id); }}>Remove</span>
+              <span className="fp-mini-action danger" onClick={(event) => { event.stopPropagation(); removeStep(step.id); }}>Delete</span>
             </span>
           </button>
         ))}
@@ -767,20 +768,19 @@ function BuilderCanvas({ activeStep, activeStepIndex, selectedFieldId, setSelect
     <section className="fp-panel min-w-0 overflow-hidden">
       <div className="border-b border-[var(--fp-border)] p-5 md:p-6">
         <p className="fp-kicker">Slide {activeStepIndex + 1}</p>
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="fp-heading">{activeStep?.title || 'Untitled slide'}</h2>
             <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">{activeStep?.subtitle || 'No helper copy set.'}</p>
           </div>
-          <p className="m-0 max-w-xl text-sm leading-6 text-[var(--fp-muted)]">
-            Drag questions to reorder them. Use the inspector on the right to keep pricing and route targets synced with the frontend.
-          </p>
         </div>
       </div>
 
-      <div className="grid gap-0 2xl:grid-cols-[220px_minmax(0,1fr)]">
+      <div className="border-b border-[var(--fp-border)] p-4 md:p-5">
         <Toolbox addFieldFromBlueprint={addFieldFromBlueprint} setDragState={setDragState} />
-        <div className="min-h-[620px] space-y-4 border-l border-[var(--fp-border)] p-4 md:p-6">
+      </div>
+      <div>
+        <div className="min-h-[620px] space-y-4 p-4 md:p-6">
           {!activeStep?.fields?.length ? (
             <div
               className="fp-empty"
@@ -816,13 +816,13 @@ function BuilderCanvas({ activeStep, activeStepIndex, selectedFieldId, setSelect
 
 function Toolbox({ addFieldFromBlueprint, setDragState }) {
   return (
-    <div className="border-b border-[var(--fp-border)] p-4 2xl:border-b-0">
-      <p className="fp-kicker">Add questions</p>
-      <div className="mt-4 space-y-5">
+    <div>
+      <p className="fp-kicker">Add</p>
+      <div className="mt-3 grid gap-3 xl:grid-cols-2">
         {Object.entries(groupedBlueprints).map(([group, items]) => (
           <div key={group}>
-            <h3 className="m-0 mb-2 text-xs font-black uppercase tracking-[0.18em] text-[var(--fp-muted)]">{group}</h3>
-            <div className="space-y-2">
+            <h3 className="m-0 mb-2 text-xs font-black uppercase tracking-[0.16em] text-[var(--fp-muted)]">{group.replace(' and ', ' + ')}</h3>
+            <div className="flex flex-wrap gap-2">
               {items.map((item) => (
                 <button
                   className="fp-tool"
@@ -837,7 +837,6 @@ function Toolbox({ addFieldFromBlueprint, setDragState }) {
                   onDragEnd={() => setDragState(null)}
                 >
                   <strong>{item.label}</strong>
-                  <span>{item.helper}</span>
                 </button>
               ))}
             </div>
@@ -871,9 +870,9 @@ function FieldPreview({ field, index, selected, setSelectedFieldId, removeField,
           {field.helper ? <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">{field.helper}</p> : null}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button className="fp-mini-action" type="button" onClick={(event) => { event.stopPropagation(); moveField(index, index - 1); }}>Up</button>
-          <button className="fp-mini-action" type="button" onClick={(event) => { event.stopPropagation(); moveField(index, index + 1); }}>Down</button>
-          <button className="fp-mini-action danger" type="button" onClick={(event) => { event.stopPropagation(); removeField(field.id); }}>Remove</button>
+          <button className="fp-mini-action" type="button" title="Move up" onClick={(event) => { event.stopPropagation(); moveField(index, index - 1); }}>↑</button>
+          <button className="fp-mini-action" type="button" title="Move down" onClick={(event) => { event.stopPropagation(); moveField(index, index + 1); }}>↓</button>
+          <button className="fp-mini-action danger" type="button" onClick={(event) => { event.stopPropagation(); removeField(field.id); }}>Delete</button>
         </div>
       </div>
       {isService ? (
