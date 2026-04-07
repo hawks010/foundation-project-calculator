@@ -10,7 +10,6 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Foundation_Settings {
 
 	public function __construct() {
-		add_action( 'admin_menu', array( $this, 'add_admin_menu' ) );
 		add_action( 'admin_init', array( $this, 'register_settings' ) );
 	}
 

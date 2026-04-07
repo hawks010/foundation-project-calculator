@@ -10,6 +10,8 @@
 - added a service-option inspector for labels, prices, and route-to-slide controls so backend and frontend stay aligned
 - added frontend sync warnings for missing budget, timeline, services, empty options, and broken route targets
 - added legacy metadata inference so existing budget/timeline/service fields are normalized into the roles the frontend expects
+- moved settings into the React admin workspace as a tab on the main builder endpoint
+- removed the disconnected Calculator Settings submenu from the Foundation admin menu
 - added frontend save/resume draft support with magic-link email flow
 - added lightweight journey metrics for views, starts, saved drafts, incomplete closes, failures, and completed submissions
 - hardened resume links so emailed draft links are constrained to the current site URL

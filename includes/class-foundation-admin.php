@@ -158,7 +158,7 @@ class Foundation_Admin {
 			array(
 				'nonce'         => wp_create_nonce( 'wp_rest' ),
 				'apiUrl'        => rest_url( 'foundation/v1/' ),
-				'settingsUrl'   => admin_url( 'admin.php?page=foundation-form-settings' ),
+				'settingsUrl'   => admin_url( 'admin.php?page=foundation-form-builder&foundation_panel=settings' ),
 				'pluginVersion' => FOUNDATION_VERSION,
 				'logoUrl'       => FOUNDATION_URL . 'assets/IMG_1089.png',
 				'dashboard'     => $this->get_dashboard_data(),

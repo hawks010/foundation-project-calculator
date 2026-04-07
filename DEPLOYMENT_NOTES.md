@@ -65,6 +65,8 @@ React rebuild local results:
 - PHP lint passed across all plugin PHP files
 - Legacy builder assets are no longer referenced by the admin enqueue path
 - Blueprint REST role check passed after refresh: `field_budget:budget:budget`, `field_timeline:timeline:timeline`, `field_services_main:services_main:services`
+- Blueprint settings REST get/save round-trip passed with `33` settings keys
+- The separate `foundation-form-settings` submenu is no longer registered by this plugin build
 
 ## Sandbox status after v1.1.0 QA
 

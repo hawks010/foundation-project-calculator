@@ -43,6 +43,7 @@ Production currently remains on `foundation-project-calculator-v110` at `1.1.0`,
 - Slide editing, field editing, service-option pricing, and route-to-slide controls are present in the React app
 - Frontend sync warnings are present for missing core fields and broken route targets
 - Legacy budget/timeline/service fields are now normalized into frontend-safe roles on REST read/save
+- Settings now load and save through the same React admin workspace rather than a separate styled PHP page
 - Resume-link base URL is constrained to the current WordPress site
 - Magic-link email sends are rate-limited
 - Invalid magic-link email requests are rejected before draft storage and metrics mutation

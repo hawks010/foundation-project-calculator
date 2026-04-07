@@ -107,6 +107,66 @@ const variantOptions = [
   { value: 'timeline', label: 'Timeline' },
 ];
 
+const settingsSections = [
+  {
+    title: 'Email',
+    description: 'Recipients, sender details, and customer confirmation copy.',
+    fields: [
+      { key: 'admin_email', label: 'Admin email', type: 'email' },
+      { key: 'cc_emails', label: 'CC emails', help: 'Comma separated.' },
+      { key: 'from_name', label: 'From name' },
+      { key: 'from_email', label: 'From email', type: 'email' },
+      { key: 'customer_confirmation_enabled', label: 'Send customer confirmation email', type: 'checkbox' },
+      { key: 'admin_subject_prefix', label: 'Admin subject prefix' },
+      { key: 'customer_subject', label: 'Customer subject' },
+      { key: 'customer_intro', label: 'Customer intro', type: 'textarea' },
+      { key: 'success_message', label: 'Success message', type: 'textarea' },
+    ],
+  },
+  {
+    title: 'Branding',
+    description: 'Public calculator labels, imagery, and final-step content.',
+    fields: [
+      { key: 'launch_button_label', label: 'Launch button label' },
+      { key: 'wizard_title', label: 'Wizard title' },
+      { key: 'currency_symbol', label: 'Currency symbol' },
+      { key: 'logo_url', label: 'Logo URL' },
+      { key: 'intro_image_url', label: 'Intro image URL' },
+      { key: 'intro_heading', label: 'Intro heading', type: 'textarea' },
+      { key: 'intro_text', label: 'Intro text', type: 'textarea' },
+      { key: 'testimonial_image_url', label: 'Testimonial image URL' },
+      { key: 'testimonial_heading', label: 'Testimonial heading', type: 'textarea' },
+      { key: 'testimonial_quote', label: 'Testimonial quote', type: 'textarea' },
+      { key: 'testimonial_attribution', label: 'Testimonial attribution' },
+      { key: 'portfolio_url', label: 'Customer CTA URL' },
+    ],
+  },
+  {
+    title: 'Uploads',
+    description: 'File validation and staff attachment packaging.',
+    fields: [
+      { key: 'allowed_file_types', label: 'Allowed file types', help: 'Comma separated extensions. SVG is excluded by default.' },
+      { key: 'max_file_size_mb', label: 'Max file size per file (MB)', type: 'number' },
+      { key: 'max_total_upload_mb', label: 'Max total upload size (MB)', type: 'number' },
+      { key: 'max_files_per_field', label: 'Max files per upload field', type: 'number' },
+      { key: 'attach_pdf_summary', label: 'Attach PDF summary', type: 'checkbox' },
+      { key: 'attach_json_summary', label: 'Attach JSON summary', type: 'checkbox' },
+      { key: 'attach_zip_package', label: 'Attach ZIP package', type: 'checkbox' },
+    ],
+  },
+  {
+    title: 'Social',
+    description: 'Links used in customer follow-up content.',
+    fields: [
+      { key: 'linkedin_url', label: 'LinkedIn URL' },
+      { key: 'twitter_url', label: 'Twitter/X URL' },
+      { key: 'facebook_url', label: 'Facebook URL' },
+      { key: 'instagram_url', label: 'Instagram URL' },
+      { key: 'tiktok_url', label: 'TikTok URL' },
+    ],
+  },
+];
+
 const emptyStep = () => ({
   id: makeId('step'),
   title: 'New slide',
@@ -346,16 +406,21 @@ function App() {
   const config = window.foundationData || {};
   const [theme, setTheme] = useState(() => window.localStorage?.getItem('foundation_admin_theme') || 'light');
   const [steps, setSteps] = useState([emptyStep()]);
+  const [settings, setSettings] = useState(null);
   const [activeStepId, setActiveStepId] = useState('');
   const [selectedFieldId, setSelectedFieldId] = useState('');
   const [status, setStatus] = useState({ type: 'idle', message: 'Loading builder data...' });
+  const [settingsStatus, setSettingsStatus] = useState({ type: 'idle', message: 'Loading settings...' });
   const [dragState, setDragState] = useState(null);
-  const [panel, setPanel] = useState('builder');
+  const [panel, setPanel] = useState(() => (
+    new URLSearchParams(window.location.search).get('foundation_panel') === 'settings' ? 'settings' : 'builder'
+  ));
 
   useEffect(() => {
     let cancelled = false;
+    const headers = { 'X-WP-Nonce': config.nonce || '' };
     fetch(`${config.apiUrl || ''}get`, {
-      headers: { 'X-WP-Nonce': config.nonce || '' },
+      headers,
       credentials: 'same-origin',
     })
       .then((response) => {
@@ -368,11 +433,30 @@ function App() {
         setSteps(normalized);
         setActiveStepId(normalized[0]?.id || '');
         setSelectedFieldId(normalized[0]?.fields?.[0]?.id || '');
-        setStatus({ type: 'success', message: 'Builder synced with WordPress.' });
+        setStatus({ type: 'success', message: 'Builder synced.' });
       })
       .catch((error) => {
         if (!cancelled) {
           setStatus({ type: 'error', message: error.message || 'Could not load the builder data.' });
+        }
+      });
+
+    fetch(`${config.apiUrl || ''}settings`, {
+      headers: { 'X-WP-Nonce': config.nonce || '' },
+      credentials: 'same-origin',
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Load failed with ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        if (cancelled) return;
+        setSettings(data);
+        setSettingsStatus({ type: 'success', message: 'Settings synced.' });
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setSettingsStatus({ type: 'error', message: error.message || 'Could not load settings.' });
         }
       });
     return () => {
@@ -537,6 +621,29 @@ function App() {
       .catch((error) => setStatus({ type: 'error', message: error.message || 'Save failed.' }));
   }
 
+  function saveSettings() {
+    if (!settings) return;
+    setSettingsStatus({ type: 'idle', message: 'Saving settings...' });
+    fetch(`${config.apiUrl || ''}settings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-WP-Nonce': config.nonce || '',
+      },
+      credentials: 'same-origin',
+      body: JSON.stringify({ settings }),
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Save failed with ${response.status}`);
+        return response.json();
+      })
+      .then((data) => {
+        setSettings(data.settings || settings);
+        setSettingsStatus({ type: 'success', message: 'Settings saved.' });
+      })
+      .catch((error) => setSettingsStatus({ type: 'error', message: error.message || 'Settings save failed.' }));
+  }
+
   function exportJson() {
     const blob = new Blob([JSON.stringify(steps, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -576,13 +683,22 @@ function App() {
           theme={theme}
           setTheme={setTheme}
           status={status}
+          settingsStatus={settingsStatus}
           onSave={saveBuilder}
+          onSaveSettings={saveSettings}
           onExport={exportJson}
           onImport={importJson}
         />
 
         {panel === 'dashboard' ? (
           <Dashboard metrics={metrics} journey={journey} config={config} warnings={warnings} />
+        ) : panel === 'settings' ? (
+          <SettingsPanel
+            settings={settings}
+            setSettings={setSettings}
+            settingsStatus={settingsStatus}
+            onSaveSettings={saveSettings}
+          />
         ) : (
           <main className="grid gap-4 xl:grid-cols-[250px_minmax(0,1fr)]">
             <SlideRail
@@ -631,7 +747,9 @@ function App() {
   );
 }
 
-function Header({ config, panel, setPanel, theme, setTheme, status, onSave, onExport, onImport }) {
+function Header({ config, panel, setPanel, theme, setTheme, status, settingsStatus, onSave, onSaveSettings, onExport, onImport }) {
+  const activeStatus = panel === 'settings' ? settingsStatus : status;
+  const saveLabel = panel === 'settings' ? 'Save settings' : 'Save';
   return (
     <header className="mb-4 overflow-hidden rounded-[24px] border border-[var(--fp-border)] bg-[var(--fp-panel)] shadow-[var(--fp-panel-shadow)]">
       <div className="flex flex-col gap-4 px-5 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-6">
@@ -645,31 +763,132 @@ function Header({ config, panel, setPanel, theme, setTheme, status, onSave, onEx
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <nav className="fp-segmented" aria-label="Foundation admin sections">
-            <button className={classNames('fp-tab', panel === 'dashboard' && 'is-active')} type="button" onClick={() => setPanel('dashboard')}>Dashboard</button>
-            <button className={classNames('fp-tab', panel === 'builder' && 'is-active')} type="button" onClick={() => setPanel('builder')}>Builder</button>
-            {config.settingsUrl ? <a className="fp-tab" href={config.settingsUrl}>Settings</a> : null}
-          </nav>
           <button className="fp-button fp-button-ghost fp-button-compact" type="button" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>
             {theme === 'dark' ? 'Light' : 'Dark'}
           </button>
           <span className="rounded-full bg-[var(--fp-chip)] px-3 py-1 text-xs font-black text-[var(--fp-chip-text)]">v{config.pluginVersion || '1.3.0'}</span>
         </div>
       </div>
-      <div className="flex flex-col gap-3 border-t border-[var(--fp-border)] px-5 py-3 md:flex-row md:items-center md:justify-between lg:px-6">
-        <div className={classNames('fp-status', status.type === 'success' && 'is-success', status.type === 'error' && 'is-error')} role="status" aria-live="polite">
-          {status.message}
+      <div className="fp-header-bottom">
+        <div className={classNames('fp-status', activeStatus.type === 'success' && 'is-success', activeStatus.type === 'error' && 'is-error')} role="status" aria-live="polite">
+          {activeStatus.message}
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button className="fp-button fp-button-ghost fp-button-compact" type="button" onClick={onExport}>Export</button>
-          <label className="fp-button fp-button-ghost fp-button-compact cursor-pointer">
-            Import
-            <input className="sr-only" type="file" accept="application/json,.json" onChange={onImport} />
-          </label>
-          <button className="fp-button fp-button-primary fp-button-compact" type="button" onClick={onSave}>Save</button>
+        <div className="flex justify-center">
+          <nav className="fp-segmented" aria-label="Foundation admin sections">
+            <button className={classNames('fp-tab', panel === 'dashboard' && 'is-active')} type="button" onClick={() => setPanel('dashboard')}>Dashboard</button>
+            <button className={classNames('fp-tab', panel === 'builder' && 'is-active')} type="button" onClick={() => setPanel('builder')}>Builder</button>
+            <button className={classNames('fp-tab', panel === 'settings' && 'is-active')} type="button" onClick={() => setPanel('settings')}>Settings</button>
+          </nav>
+        </div>
+        <div className="flex flex-wrap justify-end gap-2">
+          {panel === 'builder' ? (
+            <>
+              <button className="fp-button fp-button-ghost fp-button-compact" type="button" onClick={onExport}>Export</button>
+              <label className="fp-button fp-button-ghost fp-button-compact cursor-pointer">
+                Import
+                <input className="sr-only" type="file" accept="application/json,.json" onChange={onImport} />
+              </label>
+            </>
+          ) : null}
+          {panel !== 'dashboard' ? (
+            <button className="fp-button fp-button-primary fp-button-compact" type="button" onClick={panel === 'settings' ? onSaveSettings : onSave}>{saveLabel}</button>
+          ) : null}
         </div>
       </div>
     </header>
+  );
+}
+
+function SettingsPanel({ settings, setSettings, settingsStatus, onSaveSettings }) {
+  function updateSetting(key, value) {
+    setSettings((current) => ({ ...(current || {}), [key]: value }));
+  }
+
+  if (!settings) {
+    return (
+      <main className="fp-panel p-5 md:p-6">
+        <p className="fp-kicker">Settings</p>
+        <h2 className="fp-heading">Loading settings</h2>
+        <p className="m-0 mt-3 text-sm leading-6 text-[var(--fp-muted)]">{settingsStatus.message}</p>
+      </main>
+    );
+  }
+
+  return (
+    <main className="fp-panel overflow-hidden">
+      <div className="border-b border-[var(--fp-border)] p-5 md:p-6">
+        <p className="fp-kicker">Settings</p>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="fp-heading">Calculator settings</h2>
+            <p className="m-0 mt-2 text-sm leading-6 text-[var(--fp-muted)]">Email, branding, uploads, and follow-up links now live in this workspace.</p>
+          </div>
+          <button className="fp-button fp-button-primary fp-button-compact" type="button" onClick={onSaveSettings}>Save settings</button>
+        </div>
+      </div>
+      <div className="grid gap-4 p-4 md:p-6 xl:grid-cols-2">
+        {settingsSections.map((section) => (
+          <section className="fp-settings-section" key={section.title}>
+            <div className="mb-4">
+              <h3 className="m-0 text-lg font-black text-[var(--fp-heading)]">{section.title}</h3>
+              <p className="m-0 mt-1 text-sm leading-6 text-[var(--fp-muted)]">{section.description}</p>
+            </div>
+            <div className="grid gap-4">
+              {section.fields.map((field) => (
+                <SettingsField
+                  field={field}
+                  key={field.key}
+                  settings={settings}
+                  updateSetting={updateSetting}
+                />
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </main>
+  );
+}
+
+function SettingsField({ field, settings, updateSetting }) {
+  const value = settings[field.key] ?? '';
+  const id = `foundation-setting-${field.key}`;
+
+  if (field.type === 'checkbox') {
+    return (
+      <label className="fp-setting-toggle" htmlFor={id}>
+        <input
+          checked={value === true || value === 1 || value === '1'}
+          id={id}
+          onChange={(event) => updateSetting(field.key, event.target.checked ? 1 : 0)}
+          type="checkbox"
+        />
+        <span>{field.label}</span>
+      </label>
+    );
+  }
+
+  return (
+    <label className="block" htmlFor={id}>
+      <span className="mb-2 block text-sm font-black text-[var(--fp-heading)]">{field.label}</span>
+      {field.type === 'textarea' ? (
+        <textarea
+          className="fp-input min-h-24"
+          id={id}
+          onChange={(event) => updateSetting(field.key, event.target.value)}
+          value={value}
+        />
+      ) : (
+        <input
+          className="fp-input"
+          id={id}
+          onChange={(event) => updateSetting(field.key, event.target.value)}
+          type={field.type || 'text'}
+          value={value}
+        />
+      )}
+      {field.help ? <span className="mt-1 block text-xs leading-5 text-[var(--fp-muted)]">{field.help}</span> : null}
+    </label>
   );
 }
 
