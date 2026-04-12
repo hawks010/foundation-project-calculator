@@ -3,7 +3,7 @@ Contributors: Inkfire
 Tags: calculator, quote, estimate, form builder, lead capture
 Requires at least: 6.4
 Tested up to: 6.9
-Stable tag: 1.1.0
+Stable tag: 1.3.4
 License: GPLv2 or later
 
 A branded multi-step project calculator for WordPress with configurable emails, upload packaging, and an accessible builder.
@@ -23,6 +23,9 @@ Key features:
 * Frontend branding controls for intro copy, imagery, success messaging, and customer CTA links.
 * Improved sanitisation and safer saved builder data.
 * Accessible frontend improvements including clearer validation, focus management, and keyboard support.
+* React/Tailwind admin builder with metrics, builder/settings navigation, and clean dark/light theme switching.
+* Staff-friendly slide editing with drag/drop, keyboard move controls, and service-option routing.
+* Save/resume draft flow with magic-link email support.
 * GitHub-based auto-updates using bundled `plugin-update-checker`.
 
 == Installation ==
@@ -50,19 +53,24 @@ This is useful when you want to launch the form with your own trigger using `.fo
 * The builder stores sanitised form definitions in the `foundation_form_data` option.
 * SVG is excluded from the default upload allowlist for safety.
 * Automatic updates expect tagged GitHub releases.
+* Admin source lives in `src/admin`; production assets are built to `assets/admin`.
 
 == Changelog ==
 
-= 1.1.0 =
-* Added a friendly settings screen for notifications, branding, and upload rules.
-* Replaced hard-coded branding and email values with configurable options.
-* Added sanitisation for builder saves and safer frontend rendering.
-* Added upload validation, PDF summaries, JSON exports, and optional ZIP staff package attachments.
-* Improved frontend accessibility, focus handling, and validation feedback.
-* Restricted builder REST routes to authenticated administrators.
-* Added GitHub auto-updates and safer default sender handling.
-* Added server-side required-field validation and more accurate success messaging.
-* Updated uninstall cleanup.
+= 1.3.1 =
+
+- Fixed a frontend submission blocker where cached or draft selection state could report missing budget/timeline choices even after the customer had selected them.
+
+= 1.3.0 =
+* Rebuilt the admin builder in React and Tailwind with metrics and dashboard/builder navigation.
+* Reset dark/light theme colors for a scoped, consistent admin UI.
+* Added staff-friendly slide editing, drag/drop reordering, keyboard move controls, and service routing controls.
+* Added save/resume drafts with magic-link email support.
+* Added journey metrics for views, starts, saved drafts, incomplete closes, failures, and completed submissions.
+* Hardened resume links so emailed draft links are constrained to the current site URL.
+* Added rate limiting for magic-link email sends.
+* Migrated plugin-default logo URLs when moving between versioned plugin folders.
+* Kept the production frontend design intact while preserving the v1.1.0 validation, upload, email, and updater hardening.
 
 = 1.0.0 =
 * Initial release.

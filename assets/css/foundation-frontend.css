@@ -357,7 +357,7 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 }
 
 .options-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    display: grid; grid-template-columns: 1fr;
     gap: 16px; width: 100%;
 }
 
@@ -369,6 +369,9 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
     text-align: center; display: flex; flex-direction: column;
     justify-content: center; align-items: center; min-height: 110px;
     box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 
 .option-card:hover {
@@ -382,7 +385,11 @@ input:focus-visible, textarea:focus-visible, select:focus-visible {
 [data-theme="dark"] .option-card.selected { background: rgba(1, 174, 147, 0.1); }
 
 .option-card h4 {
-    margin: 0; font-weight: 700; color: var(--fnd-text); font-size: 1.05rem; line-height: 1.3;
+    margin: 0; font-weight: 700; color: var(--fnd-text); font-size: 1.05rem; line-height: 1.35;
+    max-width: 100%;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
 }
 .option-card .price {
     margin-top: 6px; font-size: 0.9rem; color: var(--fnd-text-muted); font-weight: 600;
@@ -576,6 +583,18 @@ input[type=range] {
     width: 100%;
 }
 
+@media (min-width: 700px) {
+    .options-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1100px) {
+    .options-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
 .option-card:focus-visible,
 .fnd-input:focus-visible,
 .foundation-lead-form input:focus-visible,
@@ -693,3 +712,7 @@ select[aria-invalid="true"] {
         width: 100%;
     }
 }
+
+
+.wizard-controls { flex-wrap: wrap; }
+.foundation-form-actions { flex-wrap: wrap; }

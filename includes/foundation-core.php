@@ -36,6 +36,32 @@ function foundation_get_default_sender_email() {
 	return foundation_get_default_notification_email();
 }
 
+function foundation_get_default_logo_url() {
+	return FOUNDATION_URL . 'assets/IMG_1089.png';
+}
+
+function foundation_is_default_plugin_logo_url( $url ) {
+	$path = wp_parse_url( (string) $url, PHP_URL_PATH );
+	if ( ! is_string( $path ) ) {
+		return false;
+	}
+
+	return (bool) preg_match( '#/wp-content/plugins/foundation-project-calculator[^/]*/assets/IMG_1089\.png$#', $path );
+}
+
+function foundation_migrate_default_asset_settings( $settings ) {
+	if ( ! is_array( $settings ) ) {
+		return $settings;
+	}
+
+	$logo_url = isset( $settings['logo_url'] ) ? (string) $settings['logo_url'] : '';
+	if ( '' === $logo_url || foundation_is_default_plugin_logo_url( $logo_url ) ) {
+		$settings['logo_url'] = foundation_get_default_logo_url();
+	}
+
+	return $settings;
+}
+
 function foundation_get_default_settings() {
 	return array(
 		'admin_email'                  => foundation_get_default_notification_email(),
@@ -46,11 +72,12 @@ function foundation_get_default_settings() {
 		'admin_subject_prefix'         => 'New customer project brief',
 		'customer_subject'             => 'We’ve received your project brief',
 		'customer_intro'               => 'Thanks for sending over your project brief! We have received your details safely.',
-		'success_message'              => 'A detailed copy of your proposal has been sent to your email.',
-		'launch_button_label'          => 'Get a Quote',
+			'success_message'              => 'A detailed copy of your proposal has been sent to your email.',
+			'quote_mode_enabled'           => 0,
+			'launch_button_label'          => 'Get a Quote',
 		'wizard_title'                 => 'Inkfire Project Calculator',
 		'currency_symbol'              => '£',
-		'logo_url'                     => FOUNDATION_URL . 'assets/IMG_1089.png',
+		'logo_url'                     => foundation_get_default_logo_url(),
 		'intro_image_url'              => 'https://inkfire.co.uk/wp-content/uploads/2025/12/250515_SCOPE-AWARDS_02_0489.jpg',
 		'intro_heading'                => 'Why choose Inkfire?',
 		'intro_text'                   => 'We’re a disabled-led team of 15+ with lived experience at the heart of everything we do. Our specialists bring decades of combined expertise across IT, web, creative and accessibility - delivering solutions that genuinely work for real people.',
@@ -80,7 +107,70 @@ function foundation_get_settings() {
 		$settings = array();
 	}
 
-	return wp_parse_args( $settings, foundation_get_default_settings() );
+	return foundation_migrate_default_asset_settings( wp_parse_args( $settings, foundation_get_default_settings() ) );
+}
+
+function foundation_is_quote_mode_enabled( $settings = null ) {
+	if ( null === $settings ) {
+		$settings = foundation_get_settings();
+	}
+
+	return ! empty( $settings['quote_mode_enabled'] );
+}
+
+
+
+function foundation_get_default_metrics() {
+	return array(
+		'form_views'      => 0,
+		'form_starts'     => 0,
+		'responses_saved' => 0,
+		'saved_drafts'    => 0,
+		'incomplete'      => 0,
+		'failures'        => 0,
+		'last_failure'    => '',
+		'last_saved_draft'=> '',
+	);
+}
+
+function foundation_get_metrics() {
+	$metrics = get_option( 'foundation_form_metrics', array() );
+	if ( ! is_array( $metrics ) ) {
+		$metrics = array();
+	}
+	return wp_parse_args( $metrics, foundation_get_default_metrics() );
+}
+
+function foundation_register_default_metrics() {
+	$current = get_option( 'foundation_form_metrics', null );
+	if ( null === $current ) {
+		add_option( 'foundation_form_metrics', foundation_get_default_metrics() );
+		return;
+	}
+	if ( ! is_array( $current ) ) {
+		$current = array();
+	}
+	$merged = wp_parse_args( $current, foundation_get_default_metrics() );
+	if ( $merged !== $current ) {
+		update_option( 'foundation_form_metrics', $merged );
+	}
+}
+
+function foundation_increment_metric( $key, $amount = 1 ) {
+	$metrics = foundation_get_metrics();
+	if ( ! isset( $metrics[ $key ] ) ) {
+		$metrics[ $key ] = 0;
+	}
+	$metrics[ $key ] = max( 0, intval( $metrics[ $key ] ) + intval( $amount ) );
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
+}
+
+function foundation_set_metric_meta( $key, $value ) {
+	$metrics = foundation_get_metrics();
+	$metrics[ $key ] = is_scalar( $value ) ? sanitize_text_field( (string) $value ) : '';
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
 }
 
 function foundation_register_default_settings() {
@@ -94,7 +184,7 @@ function foundation_register_default_settings() {
 		$current = array();
 	}
 
-	$merged = wp_parse_args( $current, foundation_get_default_settings() );
+	$merged = foundation_migrate_default_asset_settings( wp_parse_args( $current, foundation_get_default_settings() ) );
 	if ( $merged !== $current ) {
 		update_option( 'foundation_form_settings', $merged );
 	}
@@ -107,9 +197,9 @@ function foundation_sanitize_settings( $input ) {
 
 	foreach ( $defaults as $key => $default ) {
 		$value = isset( $input[ $key ] ) ? $input[ $key ] : $default;
-		if ( in_array( $key, array( 'customer_confirmation_enabled', 'attach_pdf_summary', 'attach_json_summary', 'attach_zip_package' ), true ) && ! isset( $input[ $key ] ) ) {
-			$value = 0;
-		}
+			if ( in_array( $key, array( 'customer_confirmation_enabled', 'quote_mode_enabled', 'attach_pdf_summary', 'attach_json_summary', 'attach_zip_package' ), true ) && ! isset( $input[ $key ] ) ) {
+				$value = 0;
+			}
 
 		switch ( $key ) {
 			case 'admin_email':
@@ -132,10 +222,11 @@ function foundation_sanitize_settings( $input ) {
 			case 'tiktok_url':
 				$output[ $key ] = esc_url_raw( (string) $value );
 				break;
-			case 'customer_confirmation_enabled':
-			case 'attach_pdf_summary':
-			case 'attach_json_summary':
-			case 'attach_zip_package':
+				case 'customer_confirmation_enabled':
+				case 'quote_mode_enabled':
+				case 'attach_pdf_summary':
+				case 'attach_json_summary':
+				case 'attach_zip_package':
 				$output[ $key ] = empty( $value ) ? 0 : 1;
 				break;
 			case 'max_file_size_mb':
@@ -244,8 +335,30 @@ function foundation_normalize_form_data( $steps ) {
 					if ( ! in_array( $variant, $allowed_variants, true ) ) {
 						$variant = 'services';
 					}
+					$role       = sanitize_key( $field['role'] ?? '' );
+					$field_hint = strtolower( $field_id . ' ' . wp_strip_all_tags( (string) ( $field['label'] ?? '' ) ) );
+
+					// Older builder exports sometimes stored core budget/timeline pickers as generic services.
+					if ( '' === $role ) {
+						if ( false !== strpos( $field_hint, 'budget' ) ) {
+							$role    = 'budget';
+							$variant = 'budget';
+						} elseif ( false !== strpos( $field_hint, 'timeline' ) || false !== strpos( $field_hint, 'when would you like to start' ) ) {
+							$role    = 'timeline';
+							$variant = 'timeline';
+						} elseif ( false !== strpos( $field_id, 'services_main' ) || false !== strpos( $field_hint, 'which services' ) || false !== strpos( $field_hint, 'services do you need' ) ) {
+							$role    = 'services_main';
+							$variant = 'services';
+						}
+					}
+					if ( 'budget' === $role ) {
+						$variant = 'budget';
+					} elseif ( 'timeline' === $role ) {
+						$variant = 'timeline';
+					}
+
 					$normalized_field['variant'] = $variant;
-					$normalized_field['role']    = sanitize_key( $field['role'] ?? '' );
+					$normalized_field['role']    = $role;
 					$normalized_field['options'] = array();
 					$options = isset( $field['options'] ) && is_array( $field['options'] ) ? $field['options'] : array();
 					foreach ( $options as $option ) {
@@ -499,6 +612,7 @@ function foundation_collect_uploaded_files( $settings, $steps ) {
 
 function foundation_flatten_summary_for_export( $contact, $summary, $total, $settings ) {
 	$currency = $settings['currency_symbol'] ?? '£';
+	$quote_mode = foundation_is_quote_mode_enabled( $settings );
 	$lines = array(
 		'Project Brief Summary',
 		'',
@@ -515,12 +629,16 @@ function foundation_flatten_summary_for_export( $contact, $summary, $total, $set
 	foreach ( $summary as $row ) {
 		$label = wp_strip_all_tags( $row['label'] ?? '' );
 		$value = wp_strip_all_tags( $row['value_text'] ?? ( $row['value'] ?? '' ) );
-		$price = isset( $row['price'] ) && floatval( $row['price'] ) > 0 ? ' [' . $currency . number_format_i18n( floatval( $row['price'] ), 0 ) . ']' : '';
+		$price = ! $quote_mode && isset( $row['price'] ) && floatval( $row['price'] ) > 0 ? ' [' . $currency . number_format_i18n( floatval( $row['price'] ), 0 ) . ']' : '';
 		$lines[] = sprintf( '- %s: %s%s', $label, $value, $price );
 	}
 
 	$lines[] = '';
-	$lines[] = 'Estimated total: ' . $currency . number_format_i18n( floatval( $total ), 0 );
+	if ( $quote_mode ) {
+		$lines[] = 'Quote note: This submission is for a custom quote; no automated estimate was calculated.';
+	} else {
+		$lines[] = 'Estimated total: ' . $currency . number_format_i18n( floatval( $total ), 0 );
+	}
 	$lines[] = 'Generated: ' . gmdate( 'Y-m-d H:i:s' ) . ' UTC';
 
 	return $lines;
@@ -618,8 +736,7 @@ function foundation_generate_json_attachment( $contact, $summary, $total, $setti
 		'generated_at' => gmdate( 'c' ),
 		'contact'      => $contact,
 		'summary'      => $summary,
-		'estimated_total' => round( floatval( $total ), 2 ),
-		'currency'     => $settings['currency_symbol'] ?? '£',
+		'quote_mode'   => foundation_is_quote_mode_enabled( $settings ),
 		'attachments'  => array_values( array_map( function( $item ) {
 			return array(
 				'name' => $item['name'] ?? '',
@@ -628,6 +745,10 @@ function foundation_generate_json_attachment( $contact, $summary, $total, $setti
 			);
 		}, $attachments ) ),
 	);
+	if ( ! foundation_is_quote_mode_enabled( $settings ) ) {
+		$data['estimated_total'] = round( floatval( $total ), 2 );
+		$data['currency']        = $settings['currency_symbol'] ?? '£';
+	}
 
 	$temp_file = wp_tempnam( 'foundation-brief.json' );
 	if ( ! $temp_file ) {

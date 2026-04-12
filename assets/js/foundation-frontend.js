@@ -1,8 +1,9 @@
 jQuery(document).ready(function($) {
     const config = typeof foundationConfig !== 'undefined' ? foundationConfig : {};
-    const branding = config.branding || {};
-    const uploadRules = config.uploads || {};
-    const currencySymbol = branding.currencySymbol || '£';
+	const branding = config.branding || {};
+	const uploadRules = config.uploads || {};
+	const currencySymbol = branding.currencySymbol || '£';
+	const quoteModeEnabled = Boolean(branding.quoteModeEnabled);
 
     let steps = Array.isArray(config.formData) ? config.formData : [];
     let currentStep = -1;
@@ -10,6 +11,9 @@ jQuery(document).ready(function($) {
     let uploadedFiles = {};
     let selectedRouteIds = new Set();
     let lastActiveElement = null;
+    let journeyStarted = false;
+    let journeyCompleted = false;
+    let resumeToken = '';
 
     const $overlay = $('#foundation-app-overlay');
     if ($overlay.length && $overlay.parent().prop('tagName') !== 'BODY') {
@@ -24,6 +28,11 @@ jQuery(document).ready(function($) {
     });
 
     steps = steps.map((step, index) => normalizeStep(step, index));
+    trackViewOnce();
+    const initialResumeToken = getResumeTokenFromUrl();
+    if (initialResumeToken) {
+        restoreDraftFromToken(initialResumeToken);
+    }
 
     function normalizeStep(step, index) {
         const normalized = $.extend(true, {
@@ -74,6 +83,150 @@ jQuery(document).ready(function($) {
             .replace(/'/g, '&#39;');
     }
 
+
+
+    function trackEvent(eventName, message = '') {
+        if (!config.ajaxUrl || !config.nonce) return Promise.resolve();
+        const payload = new URLSearchParams();
+        payload.set('action', 'foundation_track_quote_event');
+        payload.set('nonce', config.nonce || '');
+        payload.set('event', eventName);
+        if (message) payload.set('message', message);
+        return fetch(config.ajaxUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: payload.toString()
+        }).catch(() => null);
+    }
+
+    function trackViewOnce() {
+        const key = 'foundation_form_view_tracked';
+        try {
+            if (window.sessionStorage && !window.sessionStorage.getItem(key)) {
+                window.sessionStorage.setItem(key, '1');
+                trackEvent('view');
+            }
+        } catch (error) {
+            trackEvent('view');
+        }
+    }
+
+    function getResumeConfig() {
+        return config.resume || {};
+    }
+
+    function getResumeQueryParam() {
+        return getResumeConfig().queryParam || 'foundation_resume';
+    }
+
+    function getResumeBaseUrl() {
+        return getResumeConfig().baseUrl || window.location.href.split('?')[0];
+    }
+
+    function getResumeTokenFromUrl() {
+        try {
+            const params = new URLSearchParams(window.location.search);
+            return params.get(getResumeQueryParam()) || '';
+        } catch (error) {
+            return '';
+        }
+    }
+
+    function getContactDraftValues() {
+        return {
+            name: ($('#lead-name').val() || '').trim(),
+            email: ($('#lead-email').val() || '').trim(),
+            phone: ($('#lead-phone').val() || '').trim(),
+            company: ($('#company-name').val() || '').trim(),
+            website: ($('#lead-website').val() || '').trim()
+        };
+    }
+
+    function applyDraftContact(contact) {
+        if (!contact || typeof contact !== 'object') return;
+        $('#lead-name').val(contact.name || '');
+        $('#lead-email').val(contact.email || '');
+        $('#lead-phone').val(contact.phone || '');
+        $('#company-name').val(contact.company || '');
+        $('#lead-website').val(contact.website || '');
+    }
+
+    function saveDraft(sendEmail = false) {
+        if (!config.ajaxUrl || !config.nonce) return Promise.reject(new Error('Saving is not available right now.'));
+        const contact = getContactDraftValues();
+        const payload = new FormData();
+        payload.append('action', 'foundation_save_quote_draft');
+        payload.append('nonce', config.nonce || '');
+        payload.append('token', resumeToken || '');
+        payload.append('current_step', String(currentStep));
+        payload.append('resume_base', getResumeBaseUrl());
+        payload.append('send_email', sendEmail ? '1' : '0');
+        Object.entries(contact).forEach(([key, value]) => payload.append(`contact[${key}]`, String(value || '')));
+        Object.entries(userSelections).forEach(([key, value]) => {
+            if (Array.isArray(value)) {
+                value.forEach((item) => payload.append(`selections[${key}][]`, String(item)));
+            } else {
+                payload.append(`selections[${key}]`, String(value));
+            }
+        });
+        return fetch(config.ajaxUrl, { method: 'POST', body: payload })
+            .then(async (response) => {
+                const data = await response.json();
+                if (!response.ok || !data || !data.success) {
+                    const message = data && data.data && data.data.message ? data.data.message : 'We could not save your progress right now.';
+                    throw new Error(message);
+                }
+                resumeToken = data.data && data.data.token ? String(data.data.token) : resumeToken;
+                return data.data || {};
+            });
+    }
+
+    function restoreDraftFromToken(token) {
+        if (!token || !config.ajaxUrl || !config.nonce) return;
+        const payload = new URLSearchParams();
+        payload.set('action', 'foundation_resume_quote_draft');
+        payload.set('nonce', config.nonce || '');
+        payload.set('token', token);
+        fetch(config.ajaxUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
+            body: payload.toString()
+        }).then(async (response) => {
+            const data = await response.json();
+            if (!response.ok || !data || !data.success || !data.data) return;
+            resumeToken = token;
+            const payload = data.data;
+            userSelections = payload.selections && typeof payload.selections === 'object' ? payload.selections : {};
+            const draftContact = payload.contact && typeof payload.contact === 'object' ? payload.contact : {};
+            selectedRouteIds = new Set();
+            steps.forEach((step) => {
+                (step.fields || []).forEach((field) => {
+                    if (field.type !== 'service_card') return;
+                    const selectionKey = `${field.id}_options`;
+                    const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey].map(String) : [];
+                    (field.options || []).forEach((opt, idx) => {
+                        if (selected.includes(String(idx)) && opt.route_step_id) selectedRouteIds.add(opt.route_step_id);
+                    });
+                });
+            });
+            buildWizardLayout();
+            $overlay.css({ display: 'flex', visibility: 'visible', opacity: '1' }).addClass('is-active');
+            $('body').css('overflow', 'hidden');
+            journeyStarted = true;
+            trackEvent('start');
+            const draftStep = Number.isInteger(payload.current_step) ? payload.current_step : parseInt(payload.current_step, 10);
+            if (!Number.isNaN(draftStep) && draftStep >= 0 && draftStep < steps.length) {
+                renderStep(draftStep);
+            } else if (!Number.isNaN(draftStep) && draftStep >= steps.length) {
+                renderContactForm();
+            } else {
+                const firstIndex = getNextStepIndex(-1);
+                renderStep(firstIndex);
+            }
+            window.setTimeout(() => applyDraftContact(draftContact), 60);
+        }).catch(() => null);
+    }
+
     function getCanvas() {
         return $('#foundation-app-canvas');
     }
@@ -96,6 +249,8 @@ jQuery(document).ready(function($) {
         userSelections = {};
         uploadedFiles = {};
         selectedRouteIds = new Set();
+        journeyStarted = false;
+        journeyCompleted = false;
         buildWizardLayout();
         $overlay.css({ display: 'flex', visibility: 'visible', opacity: '0' });
         $('body').css('overflow', 'hidden');
@@ -107,6 +262,7 @@ jQuery(document).ready(function($) {
     }
 
     function closeOverlay() {
+        if (journeyStarted && !journeyCompleted) { trackEvent('incomplete'); }
         $overlay.removeClass('is-active').css('opacity', '0');
         window.setTimeout(() => {
             $overlay.css('display', 'none');
@@ -132,6 +288,7 @@ jQuery(document).ready(function($) {
                         </div>
                         <div class="wizard-controls">
                             <button class="theme-toggle" id="fnd-theme-toggle" type="button" aria-pressed="false">Light mode</button>
+                            <button class="close-link" id="foundation-save-draft-btn" type="button">Save &amp; resume</button>
                             <button class="close-link" id="foundation-close-btn" type="button">Close</button>
                         </div>
                     </div>
@@ -240,6 +397,18 @@ jQuery(document).ready(function($) {
         return ids;
     }
 
+    function hasCoreSelection(fieldId) {
+        if (!fieldId) return false;
+        const selectedOptions = userSelections[`${fieldId}_options`] || [];
+        if (Array.isArray(selectedOptions) && selectedOptions.length > 0) {
+            return true;
+        }
+
+        // Older saved drafts and some cached frontend states stored only the scalar
+        // price field. If it exists, the customer has interacted with this picker.
+        return Object.prototype.hasOwnProperty.call(userSelections, fieldId);
+    }
+
     function validateCoreSelections() {
         const ids = getCoreFieldIds();
         const checks = [
@@ -249,8 +418,7 @@ jQuery(document).ready(function($) {
         ];
         const missing = checks.filter((check) => {
             if (!ids[check.key]) return false;
-            const selected = userSelections[`${ids[check.key]}_options`] || [];
-            return !Array.isArray(selected) || selected.length === 0;
+            return !hasCoreSelection(ids[check.key]);
         }).map((check) => check.label);
 
         if (missing.length) {
@@ -414,7 +582,7 @@ jQuery(document).ready(function($) {
                 html += `
                     <button type="button" class="option-card ${isSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="${idx}" data-price="${price}" data-route-step-id="${escapeHtml(opt.route_step_id || '')}" aria-pressed="${isSelected ? 'true' : 'false'}" ${field.helper ? `aria-describedby="${helperId}"` : ''}>
                         <h4>${escapeHtml(opt.label || 'Option')}</h4>
-                        ${price > 0 ? `<div class="price">+${escapeHtml(currencySymbol)}${price}</div>` : ''}
+	                        ${!quoteModeEnabled && price > 0 ? `<div class="price">+${escapeHtml(currencySymbol)}${price}</div>` : ''}
                     </button>`;
             });
             html += '</div></fieldset>';
@@ -502,6 +670,7 @@ jQuery(document).ready(function($) {
                 </div>
                 <div class="foundation-form-actions">
                     <button id="foundation-back-to-steps" type="button" class="foundation-secondary-pill">Back</button>
+                    <button id="foundation-save-and-email" type="button" class="foundation-secondary-pill">Save &amp; email link</button>
                     <button id="foundation-submit-lead" type="button" class="foundation-primary-pill foundation-submit-pill">${escapeHtml(getTriggerLabel())}</button>
                 </div>
                 <p id="submission-error" role="alert" style="color:#c62828;display:none;text-align:center;margin-top:12px;font-weight:600;"></p>
@@ -600,28 +769,33 @@ jQuery(document).ready(function($) {
         return null;
     }
 
-    function renderSuccessScreen(serverTotal = null, customerEmailStatus = 'disabled') {
-        const totalPrice = serverTotal === null ? 0 : serverTotal;
-        const safeName = escapeHtml(($('#lead-name').val() || '').trim());
-        let safeMessage = '';
-        if (customerEmailStatus === 'sent') {
-            safeMessage = escapeHtml(branding.successMessage || 'A detailed copy of your proposal has been sent to your email.');
-        } else if (customerEmailStatus === 'failed') {
-            safeMessage = 'Your request has been sent to our team. A customer email could not be sent this time, but we still have your brief.';
-        } else {
-            safeMessage = 'Your request has been sent to our team. We will follow up with you shortly.';
-        }
+	function renderSuccessScreen(serverTotal = null, customerEmailStatus = 'disabled') {
+	    const totalPrice = serverTotal === null ? 0 : serverTotal;
+	    const safeName = escapeHtml(($('#lead-name').val() || '').trim());
+	    let safeMessage = '';
+	    const defaultSuccessMessage = quoteModeEnabled
+	        ? 'We’ll review your needs and follow up with a custom quote.'
+	        : 'A detailed copy of your proposal has been sent to your email.';
+	    if (customerEmailStatus === 'sent') {
+	        safeMessage = escapeHtml(branding.successMessage || defaultSuccessMessage);
+	    } else if (customerEmailStatus === 'failed') {
+	        safeMessage = 'Your request has been sent to our team. A customer email could not be sent this time, but we still have your brief.';
+	    } else {
+	        safeMessage = 'Your request has been sent to our team. We will follow up with you shortly.';
+	    }
+	    const estimateMarkup = quoteModeEnabled ? '' : `
+	                <div style="font-size:16px;text-transform:uppercase;letter-spacing:1px;color:var(--fnd-text-muted);margin-bottom:10px;margin-top:40px;">Estimated Investment</div>
+	                <h1 style="font-size:80px;color:var(--fnd-accent);margin:0;font-weight:800;">${escapeHtml(currencySymbol)}${Number(totalPrice).toLocaleString()}</h1>`;
 
-        $('#fnd-step-banner').hide();
-        $('.wizard-footer').hide();
-        getCanvas().html(`
-            <div style="text-align:center;padding:60px 0;">
-                <h2 id="foundation-success-heading" style="font-size:32px;margin-bottom:10px;color:var(--fnd-text);" tabindex="-1">Request Received</h2>
-                <div style="font-size:16px;text-transform:uppercase;letter-spacing:1px;color:var(--fnd-text-muted);margin-bottom:10px;margin-top:40px;">Estimated Investment</div>
-                <h1 style="font-size:80px;color:var(--fnd-accent);margin:0;font-weight:800;">${escapeHtml(currencySymbol)}${Number(totalPrice).toLocaleString()}</h1>
-                <p style="color:var(--fnd-text-muted);margin-top:20px;font-size:18px;line-height:1.5;">Thank you, ${safeName}.<br>${safeMessage}</p>
-                <button id="foundation-close-btn" type="button" class="foundation-secondary-pill" style="margin-top:40px;">Close Window</button>
-            </div>
+	    $('#fnd-step-banner').hide();
+	    $('.wizard-footer').hide();
+	    getCanvas().html(`
+	        <div style="text-align:center;padding:60px 0;">
+	            <h2 id="foundation-success-heading" style="font-size:32px;margin-bottom:10px;color:var(--fnd-text);" tabindex="-1">${quoteModeEnabled ? 'Your brief has been sent' : 'Request Received'}</h2>
+	            ${estimateMarkup}
+	            <p style="color:var(--fnd-text-muted);margin-top:20px;font-size:18px;line-height:1.5;">Thank you, ${safeName}.<br>${safeMessage}</p>
+	            <button id="foundation-close-btn" type="button" class="foundation-secondary-pill" style="margin-top:40px;">Close Window</button>
+	        </div>
         `).hide().fadeIn(300, () => $('#foundation-success-heading').trigger('focus'));
     }
 
@@ -640,6 +814,55 @@ jQuery(document).ready(function($) {
             openOverlay();
         }
     }, true);
+
+    document.addEventListener('foundation:open', function() {
+        if (getResumeTokenFromUrl()) return;
+        if (!window.foundationAutoOpen) return;
+        window.foundationAutoOpen = false;
+        openOverlay();
+    });
+
+    if (window.foundationAutoOpen && !getResumeTokenFromUrl()) {
+        window.foundationAutoOpen = false;
+        window.setTimeout(openOverlay, 0);
+    }
+
+
+
+    $(document).on('click', '#foundation-save-draft-btn, #foundation-save-and-email', function(e) {
+        e.preventDefault();
+        const sendEmail = this.id === 'foundation-save-and-email';
+        const $button = $(this);
+        const original = $button.text();
+        $button.prop('disabled', true).text(sendEmail ? 'Sending link…' : 'Saving…');
+        saveDraft(sendEmail)
+            .then((data) => {
+                const resumeUrl = data && data.resume_url ? String(data.resume_url) : '';
+                if (!sendEmail && resumeUrl && navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(resumeUrl).catch(() => null);
+                }
+                const message = sendEmail
+                    ? 'We emailed your magic link. Uploaded files will need to be added again when you return.'
+                    : (resumeUrl ? `Progress saved. Resume link: ${resumeUrl}` : 'Progress saved.');
+                if ($('#submission-error').length) {
+                    $('#submission-error').css('color', 'var(--fnd-accent)').text(message).show();
+                } else {
+                    setStepError(message);
+                }
+            })
+            .catch((error) => {
+                const message = error && error.message ? error.message : 'We could not save your progress right now.';
+                if ($('#submission-error').length) {
+                    $('#submission-error').css('color', '#c62828').text(message).show();
+                } else {
+                    setStepError(message);
+                }
+                trackEvent('failure', message);
+            })
+            .finally(() => {
+                $button.prop('disabled', false).text(original);
+            });
+    });
 
     $(document).on('click', '#foundation-close-btn', function(e) {
         e.preventDefault();
@@ -663,6 +886,10 @@ jQuery(document).ready(function($) {
     });
 
     $(document).on('click', '#foundation-start-btn', function() {
+        if (!journeyStarted) {
+            journeyStarted = true;
+            trackEvent('start');
+        }
         const firstIndex = getNextStepIndex(-1);
         renderStep(firstIndex);
     });
@@ -713,13 +940,15 @@ jQuery(document).ready(function($) {
             if (routeStepId) selectedRouteIds.add(routeStepId);
         }
 
-        userSelections[selectionKey] = selected;
-        let total = 0;
-        selected.forEach((idx) => {
-            const $opt = $grid.find(`.option-card[data-option-index="${idx}"]`);
-            total += parseFloat($opt.data('price') || 0);
-        });
-        userSelections[fieldId] = total;
+	    userSelections[selectionKey] = selected;
+	    let total = 0;
+	    if (!quoteModeEnabled) {
+	        selected.forEach((idx) => {
+	            const $opt = $grid.find(`.option-card[data-option-index="${idx}"]`);
+	            total += parseFloat($opt.data('price') || 0);
+	        });
+	    }
+	    userSelections[fieldId] = total;
         clearStepError();
     });
 
@@ -798,6 +1027,7 @@ jQuery(document).ready(function($) {
                     const message = data && data.data && data.data.message ? data.data.message : 'We could not send your request right now. Please try again in a moment.';
                     throw new Error(message);
                 }
+                journeyCompleted = true;
                 renderSuccessScreen(
                     data.data && typeof data.data.total !== 'undefined' ? data.data.total : null,
                     data.data && data.data.customer_email_status ? String(data.data.customer_email_status) : 'disabled'
@@ -806,6 +1036,7 @@ jQuery(document).ready(function($) {
             .catch((error) => {
                 $('#submission-error').text(error.message).show();
                 $btn.text(getTriggerLabel()).prop('disabled', false);
+                trackEvent('failure', error.message || 'Submission failed.');
             });
     });
 });
