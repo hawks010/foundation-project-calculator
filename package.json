@@ -1,6 +1,6 @@
 {
   "name": "foundation-project-calculator",
-  "version": "1.3.1",
+  "version": "1.3.5",
   "description": "React/Tailwind admin builder for the Foundation Project Calculator WordPress plugin.",
   "private": true,
   "type": "module",

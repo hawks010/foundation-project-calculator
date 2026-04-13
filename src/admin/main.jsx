@@ -1315,9 +1315,16 @@ function FieldLabel({ label, children }) {
 }
 
 function boot() {
-  const root = document.getElementById('foundation-admin-app');
-  if (!root) return;
+  const root = document.getElementById('foundation-project-calculator-app');
+  if (!root || root.dataset.foundationProjectCalculatorBooted === '1') return;
+  root.dataset.foundationProjectCalculatorBooted = '1';
   createRoot(root).render(<App />);
 }
 
+window.addEventListener('foundation-admin:ready', (event) => {
+  if (event.detail?.plugin === 'project-calculator') {
+    boot();
+  }
+});
+document.addEventListener('DOMContentLoaded', boot);
 boot();

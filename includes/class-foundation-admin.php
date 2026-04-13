@@ -111,12 +111,67 @@ class Foundation_Admin {
 		);
 	}
 
+	private function get_shell_config() {
+		$dashboard = $this->get_dashboard_data();
+		$metrics   = $dashboard['metrics'];
+
+		return array(
+			'plugin'          => 'project-calculator',
+			'rootId'          => 'foundation-admin-app',
+			'eyebrow'         => __( 'Foundation command centre', 'foundation-customer-form' ),
+			'title'           => __( 'Foundation Project Calculator', 'foundation-customer-form' ),
+			'description'     => __( 'The existing React builder now sits inside the shared Foundation shell. REST routes, settings storage, and builder data remain unchanged.', 'foundation-customer-form' ),
+			'badge'           => 'v' . FOUNDATION_VERSION,
+			'themeStorageKey' => 'foundation-project-calculator-theme',
+			'actions'         => array(
+				array(
+					'label'   => __( 'Open builder', 'foundation-customer-form' ),
+					'href'    => admin_url( 'admin.php?page=foundation-form-builder' ),
+					'variant' => 'solid',
+				),
+				array(
+					'label'   => __( 'GitHub backup', 'foundation-customer-form' ),
+					'href'    => 'https://github.com/hawks010/foundation-project-calculator',
+					'target'  => '_blank',
+					'variant' => 'ghost',
+				),
+			),
+			'metrics'         => array_slice(
+				array_map(
+					static function ( $metric ) {
+						return array(
+							'label' => $metric['label'] ?? '',
+							'value' => $metric['value'] ?? '',
+							'meta'  => $metric['note'] ?? '',
+						);
+					},
+					$metrics
+				),
+				0,
+				4
+			),
+			'sections'        => array(
+				array(
+					'id'          => 'project-calculator-workspace',
+					'navLabel'    => __( 'Builder', 'foundation-customer-form' ),
+					'eyebrow'     => __( 'React workspace', 'foundation-customer-form' ),
+					'title'       => __( 'Builder, settings, and journey metrics', 'foundation-customer-form' ),
+					'description' => __( 'This is the same production React builder mounted inside the shared Foundation admin frame.', 'foundation-customer-form' ),
+					'templateId'  => 'foundation-project-calculator-workspace',
+				),
+			),
+		);
+	}
+
 	public function render_admin_page() {
 		?>
 		<div class="wrap foundation-admin-wrap">
 			<div id="foundation-admin-app">
 				<p><?php esc_html_e( 'Loading Foundation builder...', 'foundation-customer-form' ); ?></p>
 			</div>
+			<template id="foundation-project-calculator-workspace">
+				<div id="foundation-project-calculator-app"></div>
+			</template>
 		</div>
 		<?php
 	}
@@ -134,18 +189,39 @@ class Foundation_Admin {
 
 		if ( file_exists( $css_path ) ) {
 			wp_enqueue_style(
+				'foundation-admin-shell',
+				FOUNDATION_URL . 'assets/admin/foundation-admin-shell.css',
+				array(),
+				FOUNDATION_VERSION
+			);
+
+			wp_enqueue_style(
 				'foundation-admin-app',
 				$css_url,
-				array(),
+				array( 'foundation-admin-shell' ),
 				file_exists( $css_path ) ? (string) filemtime( $css_path ) : $version
 			);
 		}
 
 		if ( file_exists( $js_path ) ) {
 			wp_enqueue_script(
+				'foundation-admin-shell',
+				FOUNDATION_URL . 'assets/admin/foundation-admin-shell.js',
+				array( 'wp-element' ),
+				FOUNDATION_VERSION,
+				true
+			);
+
+			wp_add_inline_script(
+				'foundation-admin-shell',
+				'window.foundationAdminShellData = ' . wp_json_encode( $this->get_shell_config() ) . ';',
+				'before'
+			);
+
+			wp_enqueue_script(
 				'foundation-admin-app',
 				$js_url,
-				array(),
+				array( 'foundation-admin-shell' ),
 				$version,
 				true
 			);
