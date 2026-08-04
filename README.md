@@ -2,7 +2,7 @@
 
 Version: 1.3.5
 
-Public repository: https://github.com/hawks010/foundation-project-calculator
+Public repository: https://github.com/Inkfire-limited/foundation-project-calculator
 
 A branded multi-step quote calculator and lead capture plugin for WordPress, hardened for a production-safe rollout on Inkfire.
 
@@ -47,7 +47,7 @@ A branded multi-step quote calculator and lead capture plugin for WordPress, har
 
 ## GitHub updater
 
-- The plugin now includes a GitHub-based updater pointed at `hawks010/foundation-project-calculator`
+- The plugin now includes a GitHub-based updater pointed at `Inkfire-limited/foundation-project-calculator`
 - Publish release ZIPs from tagged GitHub releases so WordPress can detect updates cleanly
 - If the repository ever becomes private again, provide a token with:
   - `FOUNDATION_PROJECT_CALCULATOR_GITHUB_TOKEN`

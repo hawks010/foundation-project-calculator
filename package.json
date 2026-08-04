@@ -9,15 +9,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/hawks010/foundation-project-calculator.git"
+    "url": "git+https://github.com/Inkfire-limited/foundation-project-calculator.git"
   },
   "keywords": [],
   "author": "Inkfire",
   "license": "GPL-2.0-or-later",
   "bugs": {
-    "url": "https://github.com/hawks010/foundation-project-calculator/issues"
+    "url": "https://github.com/Inkfire-limited/foundation-project-calculator/issues"
   },
-  "homepage": "https://github.com/hawks010/foundation-project-calculator#readme",
+  "homepage": "https://github.com/Inkfire-limited/foundation-project-calculator#readme",
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

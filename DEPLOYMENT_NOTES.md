@@ -2,7 +2,7 @@
 
 ## Repository
 
-- Public repo: https://github.com/hawks010/foundation-project-calculator
+- Public repo: https://github.com/Inkfire-limited/foundation-project-calculator
 - Main branches:
   - `main`
   - `backup/live-old-version`

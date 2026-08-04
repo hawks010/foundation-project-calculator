@@ -87,9 +87,9 @@ final class Foundation_Github_Updater {
 	 * @return string
 	 */
 	private function get_repository() {
-		$repository = apply_filters( 'foundation_project_calculator_github_repository', 'hawks010/foundation-project-calculator' );
+		$repository = apply_filters( 'foundation_project_calculator_github_repository', 'Inkfire-limited/foundation-project-calculator' );
 
-		return is_string( $repository ) ? trim( $repository ) : 'hawks010/foundation-project-calculator';
+		return is_string( $repository ) ? trim( $repository ) : 'Inkfire-limited/foundation-project-calculator';
 	}
 
 	/**

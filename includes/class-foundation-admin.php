@@ -131,7 +131,7 @@ class Foundation_Admin {
 				),
 				array(
 					'label'   => __( 'GitHub backup', 'foundation-customer-form' ),
-					'href'    => 'https://github.com/hawks010/foundation-project-calculator',
+					'href'    => 'https://github.com/Inkfire-limited/foundation-project-calculator',
 					'target'  => '_blank',
 					'variant' => 'ghost',
 				),

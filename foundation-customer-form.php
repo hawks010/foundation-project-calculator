@@ -1,14 +1,14 @@
 <?php
 /**
  * Plugin Name: Foundation Project Calculator
- * Plugin URI: https://github.com/hawks010/foundation-project-calculator
+ * Plugin URI: https://github.com/Inkfire-limited/foundation-project-calculator
  * Description: A multi-step project calculator and lead capture tool with branded customer emails, upload packaging, and an accessible builder.
  * Version: 1.3.5
  * Author: Sonny x Inkfire
  * Text Domain: foundation-customer-form
  * Requires at least: 6.4
  * Requires PHP: 7.4
- * Update URI: https://github.com/hawks010/foundation-project-calculator
+ * Update URI: https://github.com/Inkfire-limited/foundation-project-calculator
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
