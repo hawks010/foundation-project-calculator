@@ -1,30 +1,14 @@
-# OS and editor files
 .DS_Store
 Thumbs.db
-*.swp
-*.swo
-*.tmp
-
-# Dependency and build artifacts
-node_modules/
-vendor/
-dist/
-build/
-coverage/
-
-# The bundled updater needs these parser dependencies in release zips.
-!plugin-update-checker/vendor/
-!plugin-update-checker/vendor/*.php
-
-# Archives and generated exports
-*.zip
-*.tar
-*.tar.gz
 *.log
-
-# Environment and local config
-.env
-.env.*
-
-# WordPress runtime content that should not live in the plugin repo
-wp-content/
+/tests/browser/__pycache__/
+/tests/browser/harness.html
+/tests/browser/harness-config.js
+/tests/browser/browser-smoke-dom.html
+/tests/browser/browser-smoke.png
+/tests/browser/browser-smoke-success.png
+/tests/browser/browser-console.json
+/tests/browser/chromium.log
+/tests/browser/http-server.log
+/tests/browser/playwright-errors.log
+/tests/browser/playwright-result.txt

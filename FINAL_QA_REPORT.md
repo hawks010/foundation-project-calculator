@@ -1,106 +1,161 @@
-# Final QA Report
+# Foundation Project Calculator 1.4.0 Final Local QA Report
 
-Date: 2026-04-07
+**Run date:** 5 August 2026
+**Working source:** user-supplied 1.3.x plugin archive
+**Pricing source:** Mali's Inkfire pricing-flow PDF dated 5 August 2026
+**Repository target:** Inkfire-limited/foundation-project-calculator
 
-## Scope
+## Outcome
 
-- Harden the uploaded `v1.3.0` plugin package
-- Preserve the current production `v1.1.0` active plugin and the inactive `v1.0.0` rollback copy
-- Smoke test the admin redesign, dark mode, save/resume flow, and existing frontend journey
-- Prepare the plugin in GitHub on `codex/finalise-v1-3-0-admin-redesign`
+**Local result: PASS for a production-candidate package.**
 
-## Environments used
+No claim is made that the live Inkfire stack has passed. The remaining environmental checks are listed below.
 
-- Production path: `/home/u363235284/domains/inkfire.co.uk/public_html`
-- Blueprint path: `/home/u363235284/domains/inkfire.co.uk/public_html/blueprint`
-- Sandbox path: `/home/u363235284/domains/inkfire.co.uk/public_html/sandbox`
-- Current production calculator URL: `https://inkfire.co.uk/foundation/`
-- Blueprint QA URL: `https://blueprint.inkfire.co.uk/foundation-calculator-qa/`
+## Environment
 
-## Summary
+- PHP 8.4.16
+- Node.js 22.16.0
+- Chromium 144.0.7559.96
+- Playwright 1.57.0 under Xvfb
+- No local WordPress database runtime
+- No PHP `ZipArchive` extension
+- No PHP 7.4 binary
 
-The uploaded `v1.3.0` beta was imported for review, then the backend builder was rebuilt as a React/Tailwind admin app because the uploaded package did not actually contain the expected React source. The new app uses Vite, scoped Tailwind styles, clean light/dark theme tokens, slide-level editing, drag/drop reordering, keyboard move controls, and a service routing inspector that writes to the same `foundation_form_data` schema used by the public calculator.
+## Unit and integration-style tests
 
-Production now runs `foundation-project-calculator-v130` at `1.3.0`, with `foundation-project-calculator-v110` at `1.1.0` and the older `foundation-project-calculator` at `1.0.0` still installed and inactive for rollback. Blueprint is also running the separate `foundation-project-calculator-v130` copy, with `foundation-project-calculator-v110` left installed and inactive there as rollback.
+The deterministic PHP suite covers:
 
-## Final production rollout - 2026-04-07
+- blueprint structure and integrity fingerprint
+- legacy/custom journey warning
+- exact same-origin resume URLs
+- transient rate limiting
+- bounded price sanitisation
+- small and bespoke website formulas
+- complete Web example
+- alt-text manual threshold
+- existing-site discovery route
+- ongoing and occasional IT calculations
+- project-size manual outcomes
+- Microsoft setup and Intune totals
+- Cyber Essentials discovery
+- accessibility tech hours
+- social exact, range, and manual outcomes
+- blog, copy, and newsletter outcomes
+- Access to Work routing
+- EA, PA, VA, and customer-support calculations
+- strategy billing selection
+- marketing combination
+- multi-route combination
+- hidden-field required validation
+- tampered option rejection
+- single-choice enforcement
+- numeric bounds and step validation
+- direct-engine numeric clamping
+- blocked upload extensions
+- private enquiry creation and lookup
+- submission locking
+- mail-status allow-list
+- privacy export and erasure
+- retention cleanup
+- cron scheduling
 
-- Production `v1.3.0` was installed into a freshly recreated `foundation-project-calculator-v130` plugin folder.
-- The previous inactive production `v1.3.0` folder was backed up before removal to `/home/u363235284/domains/inkfire.co.uk/public_html/wp-content/foundation-project-calculator-v130-pre-final-20260407022914.tar.gz`.
-- Production activation succeeded: `foundation-project-calculator-v130` active, `foundation-project-calculator-v110` inactive, and `foundation-project-calculator` inactive.
-- Production schema sync check passed: 15 slides, `field_budget`, `field_timeline`, and `field_services_main` all present, 12 route targets, no broken route targets, no empty option labels, and no unreachable conditional slides.
-- Production public page check passed: `https://inkfire.co.uk/foundation/` renders from the `foundation-project-calculator-v130` plugin folder and contains the core budget/timeline/services fields.
-- Production asset check passed: `assets/admin/admin-app.js`, `assets/admin/admin-app.css`, and `assets/js/foundation-frontend.js` all returned `200`.
-- Production AJAX submission smoke test passed with the live frontend nonce: `admin_sent=true`, `customer_sent=true`, and `customer_email_status=sent`.
-- The required project brief field label was corrected in saved blueprint and production form data from `Whats your project brief? (optional)` to `What is your project brief?` so the label matches the required behavior.
-- Cache-busted production and blueprint URLs show the corrected project brief label. The plain production URL was still serving a stale LiteSpeed-cached HTML hit immediately after NitroPack/object-cache purge, so it may need Hostinger/LiteSpeed cache expiry or panel-level purge before the non-cache-busted URL reflects that copy edit.
+Final result: **40 passed, 0 failed**.
 
-## Test results
+## Static and security checks
 
-### Passed
+The static script verifies:
 
-- Local repo import on `codex/finalise-v1-3-0-admin-redesign`
-- Confirmed beta package structure
-- Confirmed no React/Tailwind source tooling is bundled
-- Added React/Tailwind/Vite admin source under `src/admin`
-- Built production admin assets to `assets/admin/admin-app.js` and `assets/admin/admin-app.css`
-- Removed the unused legacy jQuery builder assets from the active package
-- Restored `.gitignore` that was missing from the uploaded package
-- PHP lint passed on all plugin PHP files
-- `npm run build` passed for the React/Tailwind admin app
-- JS syntax check passed for the built `assets/admin/admin-app.js`
-- `git diff --check` passed
-- Bundled updater parser dependencies are now tracked for GitHub/source release packaging
-- Dark/light admin theme colors have been reset around scoped app variables
-- Slide editing, field editing, service-option pricing, and route-to-slide controls are present in the React app
-- Frontend sync warnings are present for missing core fields and broken route targets
-- Legacy budget/timeline/service fields are now normalized into frontend-safe roles on REST read/save
-- Settings now load and save through the same React admin workspace rather than a separate styled PHP page
-- Resume-link base URL is constrained to the current WordPress site
-- Magic-link email sends are rate-limited
-- Invalid magic-link email requests are rejected before draft storage and metrics mutation
-- No-email save messaging now exposes the resume link directly instead of relying on clipboard support
-- Plugin default logo URL migrates from older plugin folders to the active plugin folder
-- Blueprint install as separate `foundation-project-calculator-v130` copy
-- Blueprint activation passed with `foundation-project-calculator-v110` left installed and inactive
-- Blueprint frontend render uses `foundation-project-calculator-v130` CSS and JS assets
-- Blueprint frontend config includes same-site resume settings
-- Blueprint unauthenticated builder REST read returns `401`
-- Blueprint authenticated builder REST read returns `200` with 15 steps
-- Blueprint admin dashboard render callback returned `admin-shell-ok` and `dark-ok`
-- Blueprint settings page render callback returned `settings-ok`
-- Blueprint save draft without email returned a same-site resume URL
-- Blueprint invalid magic-link email was rejected
-- Blueprint resume-token retrieval restored contact, selections, and current step
-- Blueprint invalid upload rejected `.php`
-- Blueprint full submission returned `admin_sent=true`, `customer_sent=true`, `customer_email_status=sent`
-- Blueprint magic-link email returned `email_sent=true`
-- Blueprint metrics updated for `responses_saved` and `saved_drafts`
-- Final production full submission returned `admin_sent=true`, `customer_sent=true`, `customer_email_status=sent`
+- syntax of every shipped PHP file, including the bundled updater
+- JavaScript parseability
+- balanced CSS blocks
+- absence of dangerous execution and unsafe deserialisation primitives in plugin-owned PHP
+- nonce coverage for public mutations
+- capability protection for REST routes
+- server-side price calculation
+- upload safeguards
+- draft abuse protection and metric privacy
+- exact-origin saved links
+- blueprint integrity fingerprint
+- lead storage before mail
+- absence of obsolete administration runtime references
+- avoidance of common PHP 8-only constructs in shipped plugin code
+- clean Git whitespace
 
-### Not run
+Final result: **15 passed, 0 failed**.
 
-- Uninstall cleanup was not executed on blueprint because it would intentionally delete shared plugin options used by the active test site
+## Chromium customer smoke test
 
-## Manual browser QA still recommended
+The browser test uses the actual public calculator CSS and JavaScript with a mocked transport response. It exercises rendering, branching, client validation, live totals, review, contact submission, and the success receipt.
 
-- Full admin dashboard dark/light mode pass
-- Builder journey by a non-technical editor
-- React builder save/import/export pass on blueprint after redeploying this rebuild
-- Full visual pass of the calculator modal on desktop and mobile
-- Keyboard-only journey through every step
-- Focus order and focus return after close
-- Contrast and error-state checks against live branding
-- Real upload flow with representative customer files
-- Real email delivery and attachment inspection from the production mail setup
+Journey:
 
-## Recommendation
+1. Web & Accessibility
+2. Small/basic website
+3. Five pages
+4. WooCommerce enabled
+5. Hosting plus plugins
+6. 26–50 alt texts
+7. Accessibility testing
+8. Accessibility setup
+9. Contact submission
 
-Safe to leave `v1.3.0` active on production after the server-side smoke checks above.
+Expected and observed result:
 
-Still recommended before calling the rollout fully closed:
+- One-off: £4,260
+- Monthly: £45
+- VAT: excluded
+- Success receipt: displayed
+- Save control after completion: hidden
+- Close and reopen: returned to a clean new estimate
+- Browser console errors: none recorded
 
-- manual admin dashboard dark/light mode pass
-- manual builder load/save/import/export pass
-- manual public calculator pass on desktop and mobile
-- inspection of the received production email attachment package
+## Code and architecture review
+
+### Administration
+
+- The everyday editor no longer exposes branching internals.
+- Price values are separate from the customer-flow definition.
+- The journey is visible but read-only.
+- Existing real flows are preserved during upgrade.
+- Applying the new journey creates a backup.
+- Restoring a backup swaps it safely with the current journey.
+- A content fingerprint detects supported-flow drift.
+
+### Customer submission
+
+- The server reads the live journey and catalogue.
+- Contact and answers are sanitised and bounded.
+- Hidden branches do not become required.
+- Invalid browser selections are rejected.
+- Uploads are checked before use.
+- The estimate is calculated on the server.
+- A private enquiry is created before email.
+- Duplicate requests return the original record.
+- Email failures remain visible in the local inbox.
+
+### Data lifecycle
+
+- Drafts expire.
+- Stored enquiries expire according to the configured period.
+- Personal-data export and erase callbacks are registered.
+- Uninstall removes plugin data and transient storage.
+- Uploaded files are not duplicated in the local inbox.
+
+## Known limitations and live gates
+
+The following were not possible in the local environment:
+
+- activating the package on a real WordPress staging database
+- sending through Inkfire's actual SMTP service
+- receiving and inspecting a real mailbox delivery
+- exercising the installed PHP 7.4 runtime
+- exercising `ZipArchive`
+- testing the active Inkfire theme, optimisation stack, object cache, security plugin, or CDN
+- automated Safari and Firefox runs
+- formal screen-reader testing
+
+These checks must be completed on staging. See `DEPLOYMENT_NOTES.md`.
+
+## Final packaging rule
+
+The installable release must contain one root directory named `foundation-project-calculator` and must exclude source-control data, test evidence, generated browser harnesses, and deleted build tooling. The source archive may include tests and reports but must also exclude `.git` and generated browser artefacts.

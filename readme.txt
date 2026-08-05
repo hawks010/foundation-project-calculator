@@ -1,79 +1,116 @@
 === Foundation Project Calculator ===
 Contributors: Inkfire
-Tags: calculator, quote, estimate, form builder, lead capture
+Tags: project calculator, estimate, quote, accessibility, lead capture
 Requires at least: 6.4
 Tested up to: 6.9
-Stable tag: 1.3.5
+Requires PHP: 7.4
+Stable tag: 1.4.0
 License: GPLv2 or later
+License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
-A branded multi-step project calculator for WordPress with configurable emails, upload packaging, and an accessible builder.
+A guided Inkfire project calculator with editable prices, secure server-side estimates, tailored-quote routing, and a simple private enquiry inbox.
 
 == Description ==
 
-Foundation Project Calculator helps teams collect project briefs in a cleaner, more production-ready way.
+Foundation Project Calculator converts Inkfire's Web, Tech, and Business pricing into a clear multi-step customer journey.
+
+Version 1.4 keeps the route logic stable and makes ordinary administration much simpler. Staff edit labelled prices, email settings, branding, and operational controls without working inside a complex visual flow builder.
 
 Key features:
 
-* Multi-step builder for quote and onboarding-style flows.
-* Conditional routing between screens.
-* Pricing support for cards, toggles, and sliders.
-* Customer confirmation email and branded admin notification email.
-* Upload handling with file type and size validation.
-* Admin package attachments including PDF summary, JSON summary, and optional ZIP bundle of uploads.
-* Frontend branding controls for intro copy, imagery, success messaging, and customer CTA links.
-* Improved sanitisation and safer saved builder data.
-* Accessible frontend improvements including clearer validation, focus management, and keyboard support.
-* React/Tailwind admin builder with metrics, builder/settings navigation, and clean dark/light theme switching.
-* Staff-friendly slide editing with drag/drop, keyboard move controls, and service-option routing.
-* Save/resume draft flow with magic-link email support.
-* GitHub-based auto-updates using bundled `plugin-update-checker`.
+* Multi-route calculator covering Web & Accessibility, Tech & Support, and Business Support & Marketing.
+* Customers can combine several service routes in one estimate.
+* Separate one-off and monthly totals.
+* Exact, range, and tailored-quote outcomes.
+* Live customer estimate summary.
+* Server-authoritative price calculation and route validation.
+* Thirty-eight editable prices grouped into plain admin sections.
+* Read-only customer-journey map with route and price-key health checks.
+* Blueprint integrity check and safe one-click migration with backup.
+* Private enquiry inbox stored before email delivery is attempted.
+* Branded team and customer emails.
+* Optional PDF, JSON, and ZIP staff packages.
+* Save-and-resume links restricted to the current site origin.
+* Nonce checks, rate limits, honeypot handling, duplicate protection, and bounded input.
+* Strict upload validation and executable-format deny-list.
+* Automatic lead retention plus WordPress privacy exporter and eraser integration.
+* Responsive keyboard and focus handling for the public modal.
+* GitHub release updates through the bundled update checker.
+
+All bundled prices are shown excluding VAT. The calculator is a planning estimate rather than a binding quotation.
 
 == Installation ==
 
-1. Upload the `foundation-project-calculator` folder to `/wp-content/plugins/`.
-2. Activate the plugin in WordPress.
-3. Go to **Foundation > Project Calculator** to build your form flow.
-4. Go to **Foundation > Calculator Settings** to set email recipients, branding, and upload rules.
-5. Place the shortcode `[foundation_form]` on the page where the calculator should appear.
+1. Back up the WordPress database and current calculator plugin.
+2. Upload the `foundation-project-calculator` folder to `/wp-content/plugins/`.
+3. Activate the plugin.
+4. Open **Foundation > Project Calculator**.
+5. On an upgrade, use **Back up and apply journey** when the migration notice appears.
+6. Set the real recipient and verified sender under **Emails & branding**.
+7. Add `[foundation_form]` to the calculator page.
+8. Complete one exact-price, one range, and one tailored-quote submission on staging.
 
 == Usage ==
 
-Frontend shortcode:
+Standard calculator:
+
 `[foundation_form]`
 
-Hide the default button:
+Custom label:
+
+`[foundation_form label="Plan my project"]`
+
+Hide the built-in launch button:
+
 `[foundation_form button="false"]`
 
-This is useful when you want to launch the form with your own trigger using `.foundation-trigger` or a link containing `get-quote`.
+Custom triggers can use `.foundation-trigger` or `data-foundation-calculator-open` while the shortcode remains on the page.
 
-== Notes ==
+== Upgrade notice ==
 
-* Uploaded files are validated against the allowed file list in the settings page.
-* The admin email can include a PDF summary, JSON summary, and ZIP package when supported by the server.
-* The builder stores sanitised form definitions in the `foundation_form_data` option.
-* SVG is excluded from the default upload allowlist for safety.
-* Automatic updates expect tagged GitHub releases.
-* Admin source lives in `src/admin`; production assets are built to `assets/admin`.
+= 1.4.0 =
+The pricing journey has been rebuilt from the August 2026 Inkfire board. Existing real journeys are preserved until an administrator explicitly backs them up and applies the bundled journey.
+
+== Frequently Asked Questions ==
+
+= Will an email failure lose the enquiry? =
+
+No. A completed enquiry is stored in the private calculator inbox before WordPress attempts email delivery.
+
+= Are the browser totals trusted? =
+
+No. The server validates the answers and calculates the final stored estimate from the live price catalogue.
+
+= Does the plugin include VAT? =
+
+The bundled prices exclude VAT. The public VAT note is editable under Emails & branding.
+
+= Can staff change the customer questions? =
+
+The 1.4 admin intentionally presents the tested journey as read-only. Staff can safely change prices and customer-facing operational copy. A protected legacy REST route remains available to administrators for controlled tooling, and any custom save clears the bundled-blueprint status.
+
+= Does ZIP packaging always work? =
+
+ZIP packaging requires the PHP `ZipArchive` extension. PDF and JSON reports can still be attached when it is unavailable.
+
+= Is this release fully approved for production? =
+
+It is a production candidate. Complete the staging, SMTP, theme, cache, and host checks in the deployment notes before release.
 
 == Changelog ==
 
+= 1.4.0 =
+* Rebuilt the calculator around Mali's August 2026 Inkfire pricing board.
+* Added 28 guided screens, 49 questions, 38 editable prices, and 27 verified route targets.
+* Replaced the complex everyday admin flow editor with a server-rendered dashboard and safe price editor.
+* Added a private local enquiry inbox and stored leads before mail delivery.
+* Added exact, range, monthly, and tailored-quote outcomes.
+* Added server-authoritative pricing, strict route validation, duplicate locks, rate limits, and same-origin resume links.
+* Added journey integrity checks, safe backup/apply migration, and restore controls.
+* Added deterministic PHP, static-security, and Chromium journey checks.
+
 = 1.3.5 =
-* Mounted the existing React builder inside the shared Foundation admin shell without changing REST routes, settings storage, or builder data.
-
-= 1.3.1 =
-
-- Fixed a frontend submission blocker where cached or draft selection state could report missing budget/timeline choices even after the customer had selected them.
-
-= 1.3.0 =
-* Rebuilt the admin builder in React and Tailwind with metrics and dashboard/builder navigation.
-* Reset dark/light theme colors for a scoped, consistent admin UI.
-* Added staff-friendly slide editing, drag/drop reordering, keyboard move controls, and service routing controls.
-* Added save/resume drafts with magic-link email support.
-* Added journey metrics for views, starts, saved drafts, incomplete closes, failures, and completed submissions.
-* Hardened resume links so emailed draft links are constrained to the current site URL.
-* Added rate limiting for magic-link email sends.
-* Migrated plugin-default logo URLs when moving between versioned plugin folders.
-* Kept the production frontend design intact while preserving the v1.1.0 validation, upload, email, and updater hardening.
+* Previous administration and customer-journey release.
 
 = 1.0.0 =
 * Initial release.

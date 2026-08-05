@@ -39,7 +39,9 @@ final class Foundation_Github_Updater {
 	 * Register the updater bootstrap.
 	 */
 	private function __construct() {
-		add_action( 'plugins_loaded', array( $this, 'boot' ), 5 );
+		// This singleton is created from the plugin's own plugins_loaded callback,
+		// so registering another earlier plugins_loaded callback here would never run.
+		$this->boot();
 	}
 
 	/**

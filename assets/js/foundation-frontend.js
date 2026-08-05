@@ -1,1042 +1,1074 @@
-jQuery(document).ready(function($) {
-    const config = typeof foundationConfig !== 'undefined' ? foundationConfig : {};
-	const branding = config.branding || {};
-	const uploadRules = config.uploads || {};
-	const currencySymbol = branding.currencySymbol || '£';
-	const quoteModeEnabled = Boolean(branding.quoteModeEnabled);
-
-    let steps = Array.isArray(config.formData) ? config.formData : [];
-    let currentStep = -1;
-    let userSelections = {};
-    let uploadedFiles = {};
-    let selectedRouteIds = new Set();
-    let lastActiveElement = null;
-    let journeyStarted = false;
-    let journeyCompleted = false;
-    let resumeToken = '';
-
-    const $overlay = $('#foundation-app-overlay');
-    if ($overlay.length && $overlay.parent().prop('tagName') !== 'BODY') {
-        $overlay.appendTo('body');
-    }
-
-    $overlay.attr({
-        'data-theme': 'dark',
-        'role': 'dialog',
-        'aria-modal': 'true',
-        'aria-labelledby': 'foundation-wizard-title'
-    });
-
-    steps = steps.map((step, index) => normalizeStep(step, index));
-    trackViewOnce();
-    const initialResumeToken = getResumeTokenFromUrl();
-    if (initialResumeToken) {
-        restoreDraftFromToken(initialResumeToken);
-    }
-
-    function normalizeStep(step, index) {
-        const normalized = $.extend(true, {
-            id: `step_${index + 1}`,
-            title: `Screen ${index + 1}`,
-            subtitle: 'Fill in the details below.',
-            is_conditional: false,
-            fields: []
-        }, step || {});
-
-        normalized.is_conditional = normalizeBool(normalized.is_conditional);
-        normalized.fields = Array.isArray(normalized.fields) ? normalized.fields.map((field, fieldIndex) => normalizeField(field, fieldIndex)) : [];
-        if (!normalized.id) normalized.id = `step_${index + 1}`;
-        return normalized;
-    }
-
-    function normalizeField(field, index) {
-        const normalized = $.extend(true, {
-            id: `field_${index + 1}`,
-            type: 'text_input',
-            label: '',
-            helper: '',
-            placeholder: '',
-            required: false
-        }, field || {});
-        normalized.required = normalizeBool(normalized.required);
-        if (!normalized.id) normalized.id = `field_${index + 1}`;
-        if (normalized.type === 'service_card') {
-            normalized.options = Array.isArray(normalized.options) ? normalized.options : [];
-            normalized.variant = normalized.variant || 'services';
-        }
-        return normalized;
-    }
-
-    function normalizeBool(value) {
-        if (typeof value === 'boolean') return value;
-        const raw = String(value || '').toLowerCase();
-        return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
-    }
-
-    function escapeHtml(str) {
-        if (str === null || typeof str === 'undefined') return '';
-        return String(str)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
-    }
-
-
-
-    function trackEvent(eventName, message = '') {
-        if (!config.ajaxUrl || !config.nonce) return Promise.resolve();
-        const payload = new URLSearchParams();
-        payload.set('action', 'foundation_track_quote_event');
-        payload.set('nonce', config.nonce || '');
-        payload.set('event', eventName);
-        if (message) payload.set('message', message);
-        return fetch(config.ajaxUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            body: payload.toString()
-        }).catch(() => null);
-    }
-
-    function trackViewOnce() {
-        const key = 'foundation_form_view_tracked';
-        try {
-            if (window.sessionStorage && !window.sessionStorage.getItem(key)) {
-                window.sessionStorage.setItem(key, '1');
-                trackEvent('view');
-            }
-        } catch (error) {
-            trackEvent('view');
-        }
-    }
-
-    function getResumeConfig() {
-        return config.resume || {};
-    }
-
-    function getResumeQueryParam() {
-        return getResumeConfig().queryParam || 'foundation_resume';
-    }
-
-    function getResumeBaseUrl() {
-        return getResumeConfig().baseUrl || window.location.href.split('?')[0];
-    }
-
-    function getResumeTokenFromUrl() {
-        try {
-            const params = new URLSearchParams(window.location.search);
-            return params.get(getResumeQueryParam()) || '';
-        } catch (error) {
-            return '';
-        }
-    }
-
-    function getContactDraftValues() {
-        return {
-            name: ($('#lead-name').val() || '').trim(),
-            email: ($('#lead-email').val() || '').trim(),
-            phone: ($('#lead-phone').val() || '').trim(),
-            company: ($('#company-name').val() || '').trim(),
-            website: ($('#lead-website').val() || '').trim()
-        };
-    }
-
-    function applyDraftContact(contact) {
-        if (!contact || typeof contact !== 'object') return;
-        $('#lead-name').val(contact.name || '');
-        $('#lead-email').val(contact.email || '');
-        $('#lead-phone').val(contact.phone || '');
-        $('#company-name').val(contact.company || '');
-        $('#lead-website').val(contact.website || '');
-    }
-
-    function saveDraft(sendEmail = false) {
-        if (!config.ajaxUrl || !config.nonce) return Promise.reject(new Error('Saving is not available right now.'));
-        const contact = getContactDraftValues();
-        const payload = new FormData();
-        payload.append('action', 'foundation_save_quote_draft');
-        payload.append('nonce', config.nonce || '');
-        payload.append('token', resumeToken || '');
-        payload.append('current_step', String(currentStep));
-        payload.append('resume_base', getResumeBaseUrl());
-        payload.append('send_email', sendEmail ? '1' : '0');
-        Object.entries(contact).forEach(([key, value]) => payload.append(`contact[${key}]`, String(value || '')));
-        Object.entries(userSelections).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach((item) => payload.append(`selections[${key}][]`, String(item)));
-            } else {
-                payload.append(`selections[${key}]`, String(value));
-            }
-        });
-        return fetch(config.ajaxUrl, { method: 'POST', body: payload })
-            .then(async (response) => {
-                const data = await response.json();
-                if (!response.ok || !data || !data.success) {
-                    const message = data && data.data && data.data.message ? data.data.message : 'We could not save your progress right now.';
-                    throw new Error(message);
-                }
-                resumeToken = data.data && data.data.token ? String(data.data.token) : resumeToken;
-                return data.data || {};
-            });
-    }
-
-    function restoreDraftFromToken(token) {
-        if (!token || !config.ajaxUrl || !config.nonce) return;
-        const payload = new URLSearchParams();
-        payload.set('action', 'foundation_resume_quote_draft');
-        payload.set('nonce', config.nonce || '');
-        payload.set('token', token);
-        fetch(config.ajaxUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' },
-            body: payload.toString()
-        }).then(async (response) => {
-            const data = await response.json();
-            if (!response.ok || !data || !data.success || !data.data) return;
-            resumeToken = token;
-            const payload = data.data;
-            userSelections = payload.selections && typeof payload.selections === 'object' ? payload.selections : {};
-            const draftContact = payload.contact && typeof payload.contact === 'object' ? payload.contact : {};
-            selectedRouteIds = new Set();
-            steps.forEach((step) => {
-                (step.fields || []).forEach((field) => {
-                    if (field.type !== 'service_card') return;
-                    const selectionKey = `${field.id}_options`;
-                    const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey].map(String) : [];
-                    (field.options || []).forEach((opt, idx) => {
-                        if (selected.includes(String(idx)) && opt.route_step_id) selectedRouteIds.add(opt.route_step_id);
-                    });
-                });
-            });
-            buildWizardLayout();
-            $overlay.css({ display: 'flex', visibility: 'visible', opacity: '1' }).addClass('is-active');
-            $('body').css('overflow', 'hidden');
-            journeyStarted = true;
-            trackEvent('start');
-            const draftStep = Number.isInteger(payload.current_step) ? payload.current_step : parseInt(payload.current_step, 10);
-            if (!Number.isNaN(draftStep) && draftStep >= 0 && draftStep < steps.length) {
-                renderStep(draftStep);
-            } else if (!Number.isNaN(draftStep) && draftStep >= steps.length) {
-                renderContactForm();
-            } else {
-                const firstIndex = getNextStepIndex(-1);
-                renderStep(firstIndex);
-            }
-            window.setTimeout(() => applyDraftContact(draftContact), 60);
-        }).catch(() => null);
-    }
-
-    function getCanvas() {
-        return $('#foundation-app-canvas');
-    }
-
-    function getContainer() {
-        return $('.wizard-container');
-    }
-
-    function getTriggerLabel() {
-        return branding.launchButtonLabel || 'Get a Quote';
-    }
-
-    function getWizardTitle() {
-        return branding.wizardTitle || 'Inkfire Project Calculator';
-    }
-
-    function openOverlay() {
-        lastActiveElement = document.activeElement;
-        currentStep = -1;
-        userSelections = {};
-        uploadedFiles = {};
-        selectedRouteIds = new Set();
-        journeyStarted = false;
-        journeyCompleted = false;
-        buildWizardLayout();
-        $overlay.css({ display: 'flex', visibility: 'visible', opacity: '0' });
-        $('body').css('overflow', 'hidden');
-        window.setTimeout(() => {
-            $overlay.addClass('is-active').css('opacity', '1');
-            $('#foundation-close-btn').trigger('focus');
-        }, 20);
-        renderStartScreen();
-    }
-
-    function closeOverlay() {
-        if (journeyStarted && !journeyCompleted) { trackEvent('incomplete'); }
-        $overlay.removeClass('is-active').css('opacity', '0');
-        window.setTimeout(() => {
-            $overlay.css('display', 'none');
-            $('body').css('overflow', '');
-            if (lastActiveElement && typeof lastActiveElement.focus === 'function') {
-                lastActiveElement.focus();
-            }
-        }, 250);
-    }
-
-    function buildWizardLayout() {
-        const logo = branding.logoUrl ? `<img src="${escapeHtml(branding.logoUrl)}" alt="Brand logo" style="width:auto;height:60px;object-fit:contain;">` : '';
-        const html = `
-            <div class="wizard-container">
-                <div class="wizard-cover" id="fnd-wizard-cover">
-                    <div class="cover-content" id="fnd-cover-content"></div>
-                </div>
-                <div class="wizard-main">
-                    <div class="wizard-header">
-                        <div class="wizard-title" id="foundation-wizard-title" style="display:flex;align-items:center;gap:10px;font-size:1rem;font-weight:700;">
-                            ${logo}
-                            <span>${escapeHtml(getWizardTitle())}</span>
-                        </div>
-                        <div class="wizard-controls">
-                            <button class="theme-toggle" id="fnd-theme-toggle" type="button" aria-pressed="false">Light mode</button>
-                            <button class="close-link" id="foundation-save-draft-btn" type="button">Save &amp; resume</button>
-                            <button class="close-link" id="foundation-close-btn" type="button">Close</button>
-                        </div>
-                    </div>
-                    <div class="progress-container" id="fnd-progress-bar" style="display:none;"></div>
-                    <div class="step-banner" id="fnd-step-banner" style="display:none;" aria-live="polite"></div>
-                    <p id="foundation-step-error" role="alert" style="display:none;color:#c62828;text-align:center;margin:10px 0 0;font-weight:700;"></p>
-                    <div class="wizard-card">
-                        <div id="foundation-app-canvas"></div>
-                    </div>
-                    <div class="wizard-footer" style="display:none;">
-                        <button id="btn-prev" type="button">← Back</button>
-                        <button id="btn-next" type="button">Next Step →</button>
-                    </div>
-                </div>
-            </div>`;
-        $overlay.html(html);
-        updateCoverContent('intro');
-    }
-
-    function updateCoverContent(type) {
-        const $cover = $('#fnd-wizard-cover');
-        const $content = $('#fnd-cover-content');
-        const introImage = branding.introImageUrl || '';
-        const testimonialImage = branding.testimonialImageUrl || '';
-
-        if (type === 'testimonial') {
-            if (testimonialImage) {
-                $cover.css('background-image', `url('${testimonialImage.replace(/'/g, "\\'")}')`);
-                $cover.css('background-position', 'top center');
-            }
-            $content.html(`
-                <h1 class="text-gradient">${escapeHtml(branding.testimonialHeading || 'Why Our Clients Love Inkfire')}</h1>
-                <p style="font-style:italic;font-size:17px;margin-bottom:20px;">${escapeHtml(branding.testimonialQuote || '')}</p>
-                <p style="font-weight:bold;margin-top:0;">${escapeHtml(branding.testimonialAttribution || '')}</p>
-            `);
-            return;
-        }
-
-        if (introImage) {
-            $cover.css('background-image', `url('${introImage.replace(/'/g, "\\'")}')`);
-            $cover.css('background-position', 'center');
-        }
-        $content.html(`
-            <h1 class="text-gradient">${escapeHtml(branding.introHeading || 'Why choose us?')}</h1>
-            <p>${escapeHtml(branding.introText || '')}</p>
-        `);
-    }
-
-    function shouldShowStep(step) {
-        if (!step) return false;
-        if (step.is_conditional !== true) return true;
-        return selectedRouteIds.has(step.id);
-    }
-
-    function getVisibleStepIndexes() {
-        const indexes = [];
-        steps.forEach((step, index) => {
-            if (shouldShowStep(step)) indexes.push(index);
-        });
-        return indexes;
-    }
-
-    function getNextStepIndex(fromIndex) {
-        for (let i = fromIndex + 1; i < steps.length; i++) {
-            if (shouldShowStep(steps[i])) return i;
-        }
-        return steps.length;
-    }
-
-    function getPrevStepIndex(fromIndex) {
-        for (let i = fromIndex - 1; i >= 0; i--) {
-            if (shouldShowStep(steps[i])) return i;
-        }
-        return -1;
-    }
-
-    function isFieldRequired(field) {
-        return normalizeBool(field && field.required);
-    }
-
-    function getFieldValue(fieldId) {
-        if (!fieldId || typeof userSelections[fieldId] === 'undefined' || userSelections[fieldId] === null) return '';
-        return String(userSelections[fieldId]).trim();
-    }
-
-    function clearStepError() {
-        $('#foundation-step-error').hide().text('');
-    }
-
-    function setStepError(message) {
-        $('#foundation-step-error').text(message).show();
-    }
-
-    function getCoreFieldIds() {
-        const ids = { budget: '', timeline: '', services_main: '' };
-        steps.forEach((step) => {
-            step.fields.forEach((field) => {
-                if (field.type !== 'service_card') return;
-                const role = field.role || '';
-                const variant = field.variant || '';
-                if (!ids.budget && (role === 'budget' || variant === 'budget')) ids.budget = field.id;
-                if (!ids.timeline && (role === 'timeline' || variant === 'timeline')) ids.timeline = field.id;
-                if (!ids.services_main && (role === 'services_main' || variant === 'services')) ids.services_main = field.id;
-            });
-        });
-        return ids;
-    }
-
-    function hasCoreSelection(fieldId) {
-        if (!fieldId) return false;
-        const selectedOptions = userSelections[`${fieldId}_options`] || [];
-        if (Array.isArray(selectedOptions) && selectedOptions.length > 0) {
-            return true;
-        }
-
-        // Older saved drafts and some cached frontend states stored only the scalar
-        // price field. If it exists, the customer has interacted with this picker.
-        return Object.prototype.hasOwnProperty.call(userSelections, fieldId);
-    }
-
-    function validateCoreSelections() {
-        const ids = getCoreFieldIds();
-        const checks = [
-            { key: 'budget', label: 'budget' },
-            { key: 'timeline', label: 'timeline' },
-            { key: 'services_main', label: 'service selection' }
-        ];
-        const missing = checks.filter((check) => {
-            if (!ids[check.key]) return false;
-            return !hasCoreSelection(ids[check.key]);
-        }).map((check) => check.label);
-
-        if (missing.length) {
-            setStepError(`Please complete your ${missing.join(', ')} before requesting a quote.`);
-            return false;
-        }
-        return true;
-    }
-
-    function focusTrap(event) {
-        if (!$overlay.hasClass('is-active') || event.key !== 'Tab') return;
-        const focusable = $overlay.find('a, button, input, textarea, select, [tabindex]:not([tabindex="-1"])').filter(':visible');
-        if (!focusable.length) return;
-        const first = focusable.get(0);
-        const last = focusable.get(focusable.length - 1);
-        if (event.shiftKey && document.activeElement === first) {
-            event.preventDefault();
-            last.focus();
-        } else if (!event.shiftKey && document.activeElement === last) {
-            event.preventDefault();
-            first.focus();
-        }
-    }
-
-    function validateCurrentStep() {
-        if (currentStep < 0 || currentStep >= steps.length) return true;
-        const step = steps[currentStep];
-        if (!step || !Array.isArray(step.fields)) return true;
-
-        clearStepError();
-
-        for (const field of step.fields) {
-            if (!field || !field.id || !isFieldRequired(field)) continue;
-            const type = field.type;
-            let valid = true;
-            let focusTarget = null;
-
-            if (type === 'service_card' || type === 'toggle') {
-                const selected = userSelections[`${field.id}_options`] || [];
-                valid = Array.isArray(selected) && selected.length > 0;
-                focusTarget = $(`[data-field-id="${field.id}"]`).find('.option-card').first();
-            } else if (type === 'range_slider') {
-                valid = !!userSelections[`${field.id}_val`];
-                focusTarget = $(`#${field.id}_range`);
-            } else if (type === 'text_input' || type === 'rich_text') {
-                valid = getFieldValue(field.id) !== '';
-                focusTarget = $(`#${field.id}`);
-                focusTarget.attr('aria-invalid', valid ? 'false' : 'true');
-            } else if (type === 'file_upload') {
-                const selectedFiles = uploadedFiles[field.id] || [];
-                valid = Array.isArray(selectedFiles) && selectedFiles.length > 0;
-                focusTarget = $(`#${field.id}`);
-                focusTarget.attr('aria-invalid', valid ? 'false' : 'true');
-            }
-
-            if (!valid) {
-                setStepError(`Please complete “${field.label || 'this field'}” before continuing.`);
-                if (focusTarget && focusTarget.length) focusTarget.trigger('focus');
-                return false;
-            }
-        }
-        return true;
-    }
-
-    function renderStartScreen() {
-        currentStep = -1;
-        getContainer().removeClass('full-width-mode');
-        updateCoverContent('intro');
-        $('#fnd-progress-bar, #fnd-step-banner, .wizard-footer').hide();
-        clearStepError();
-
-        getCanvas().html(`
-            <div class="start-screen-content">
-                <div class="sections-list"><span>Brief</span> • <span>Plan</span> • <span>Quote</span></div>
-                <h2>Your next project starts here.</h2>
-                <p style="color:var(--fnd-text-muted);">Build your project step by step. Our interactive calculator helps you choose what you need and see transparent pricing as you go.</p>
-                <button id="foundation-start-btn" type="button" class="foundation-primary-pill">Let's Begin</button>
-            </div>
-        `).hide().fadeIn(250, () => $('#foundation-start-btn').trigger('focus'));
-    }
-
-    function renderProgressBar(index) {
-        const visible = getVisibleStepIndexes();
-        const currentPos = visible.indexOf(index);
-        const totalSegments = visible.length + 1;
-        let html = '';
-        for (let i = 0; i < totalSegments; i++) {
-            html += `<div class="progress-segment ${currentPos >= 0 && i <= currentPos ? 'active' : ''}"></div>`;
-        }
-        $('#fnd-progress-bar').html(html);
-    }
-
-    function renderBanner(step, index) {
-        $('#fnd-step-banner').html(`
-            <h2>${escapeHtml(step.title || `Step ${index + 1}`)}</h2>
-            <p style="margin:0 auto;">${escapeHtml(step.subtitle || 'Fill in the details below.')}</p>
-        `).show();
-    }
-
-    function focusFirstInteractive() {
-        const $first = getCanvas().find('button, input, textarea, select').filter(':visible').first();
-        if ($first.length) $first.trigger('focus');
-    }
-
-    function renderStep(index) {
-        currentStep = index;
-        clearStepError();
-
-        if (index >= steps.length) {
-            renderContactForm();
-            return;
-        }
-
-        if (!steps[index]) {
-            getCanvas().html('<div style="text-align:center;padding:40px;"><h2>No steps configured</h2><p>Please configure the wizard in WordPress admin.</p></div>');
-            return;
-        }
-
-        getContainer().addClass('full-width-mode');
-        $('#fnd-progress-bar, #fnd-step-banner, .wizard-footer').show();
-        renderProgressBar(index);
-        renderBanner(steps[index], index);
-
-        let html = '<div class="step-container">';
-        if (steps[index].fields && steps[index].fields.length) {
-            steps[index].fields.forEach((field) => {
-                html += renderField(field);
-            });
-        } else {
-            html += '<p style="text-align:center;color:var(--fnd-text-muted);">(This step has no fields)</p>';
-        }
-        html += '</div>';
-
-        getCanvas().html(html).hide().fadeIn(250, focusFirstInteractive);
-        $('.wizard-footer').show();
-        $('#btn-next').text('Next Step →');
-    }
-
-    function getFieldHelperMarkup(field, helperId) {
-        if (!field.helper) return '';
-        return `<div id="${helperId}" class="fnd-helper-text">${escapeHtml(field.helper)}</div>`;
-    }
-
-    function renderField(field) {
-        if (!field || !field.type) return '';
-        const requiredMark = isFieldRequired(field) ? ' <span aria-hidden="true" style="color:#c62828;">*</span>' : '';
-        const helperId = `${field.id}_helper`;
-        let html = `<div class="field-wrapper" data-field-wrapper="${escapeHtml(field.id)}">`;
-        if (field.label && !['section_title', 'description', 'divider'].includes(field.type)) {
-            html += `<h4 id="${escapeHtml(field.id)}_label">${escapeHtml(field.label)}${requiredMark}</h4>`;
-        }
-
-        if (field.type === 'service_card') {
-            const selectionKey = `${field.id}_options`;
-            const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey] : [];
-            const isMulti = !field.variant || field.variant === 'services';
-            html += `<fieldset class="fnd-fieldset"><legend class="screen-reader-text">${escapeHtml(field.label || 'Options')}</legend>${getFieldHelperMarkup(field, helperId)}<div class="options-grid" data-field-id="${escapeHtml(field.id)}" data-multi="${isMulti ? 'true' : 'false'}">`;
-            (field.options || []).forEach((opt, idx) => {
-                const isSelected = selected.includes(idx) || selected.includes(String(idx));
-                const price = parseFloat(opt.price || 0);
-                html += `
-                    <button type="button" class="option-card ${isSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="${idx}" data-price="${price}" data-route-step-id="${escapeHtml(opt.route_step_id || '')}" aria-pressed="${isSelected ? 'true' : 'false'}" ${field.helper ? `aria-describedby="${helperId}"` : ''}>
-                        <h4>${escapeHtml(opt.label || 'Option')}</h4>
-	                        ${!quoteModeEnabled && price > 0 ? `<div class="price">+${escapeHtml(currencySymbol)}${price}</div>` : ''}
-                    </button>`;
-            });
-            html += '</div></fieldset>';
-        } else if (field.type === 'toggle') {
-            const selectionKey = `${field.id}_options`;
-            const selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey] : [];
-            const yesSelected = selected.includes(0) || selected.includes('0');
-            const noSelected = selected.includes(1) || selected.includes('1');
-            html += `<fieldset class="fnd-fieldset"><legend class="screen-reader-text">${escapeHtml(field.label || 'Yes or no')}</legend><div class="options-grid options-grid-toggle" data-field-id="${escapeHtml(field.id)}" data-multi="false">`;
-            html += `<button type="button" class="option-card ${yesSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="0" data-price="${parseFloat(field.price || 0)}" aria-pressed="${yesSelected ? 'true' : 'false'}"><h4>${escapeHtml(field.yes_label || 'Yes')}</h4></button>`;
-            html += `<button type="button" class="option-card ${noSelected ? 'selected' : ''}" data-field-id="${escapeHtml(field.id)}" data-option-index="1" data-price="0" aria-pressed="${noSelected ? 'true' : 'false'}"><h4>${escapeHtml(field.no_label || 'No')}</h4></button>`;
-            html += '</div></fieldset>';
-        } else if (field.type === 'text_input') {
-            html += `${getFieldHelperMarkup(field, helperId)}<input id="${escapeHtml(field.id)}" type="text" class="fnd-input" data-field-id="${escapeHtml(field.id)}" data-field-type="text_input" value="${escapeHtml(getFieldValue(field.id))}" placeholder="${escapeHtml(field.placeholder || 'Type here...')}" ${field.helper ? `aria-describedby="${helperId}"` : ''} ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>`;
-        } else if (field.type === 'rich_text') {
-            html += `${getFieldHelperMarkup(field, helperId)}<textarea id="${escapeHtml(field.id)}" class="fnd-input" data-field-id="${escapeHtml(field.id)}" data-field-type="rich_text" rows="6" placeholder="${escapeHtml(field.placeholder || 'Type details here...')}" ${field.helper ? `aria-describedby="${helperId}"` : ''} ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>${escapeHtml(getFieldValue(field.id))}</textarea>`;
-        } else if (field.type === 'file_upload') {
-            const selectedFiles = escapeHtml(getFieldValue(field.id) || 'No files selected yet.');
-            const accept = getAcceptAttribute(field);
-            const describedBy = [field.helper ? helperId : '', `${field.id}_summary`].filter(Boolean).join(' ');
-            html += `${getFieldHelperMarkup(field, helperId)}<input id="${escapeHtml(field.id)}" type="file" class="fnd-input fnd-file-input" data-field-id="${escapeHtml(field.id)}" data-field-type="file_upload" ${accept ? `accept="${escapeHtml(accept)}"` : ''} multiple aria-describedby="${escapeHtml(describedBy)}" ${isFieldRequired(field) ? 'aria-required="true" required' : ''}>`;
-            html += `<div id="${escapeHtml(field.id)}_summary" data-file-summary-for="${escapeHtml(field.id)}" class="fnd-helper-text" aria-live="polite">${selectedFiles}</div>`;
-        } else if (field.type === 'range_slider') {
-            const currentVal = userSelections[`${field.id}_val`] || field.min || 1;
-            html += `<div class="range-wrapper"><div class="range-value" id="${escapeHtml(field.id)}_output">${escapeHtml(currentVal)}</div><input id="${escapeHtml(field.id)}_range" type="range" class="foundation-range" data-field-id="${escapeHtml(field.id)}" min="${escapeHtml(field.min || 1)}" max="${escapeHtml(field.max || 50)}" step="${escapeHtml(field.step || 1)}" value="${escapeHtml(currentVal)}" aria-labelledby="${escapeHtml(field.id)}_label" aria-describedby="${escapeHtml(field.id)}_output"></div>`;
-        } else if (field.type === 'section_title') {
-            html += `<div class="section-title-block"><h3 style="margin-bottom:5px;">${escapeHtml(field.label || '')}</h3>${field.helper ? `<p style="margin-top:0;color:var(--fnd-text-muted);">${escapeHtml(field.helper)}</p>` : ''}</div>`;
-        } else if (field.type === 'description') {
-            html += `<p style="color:var(--fnd-text);line-height:1.6;">${escapeHtml(field.text || '')}</p>`;
-        } else if (field.type === 'divider') {
-            html += `<hr style="border:0;border-top:1px solid var(--fnd-border);margin:20px 0;">`;
-        }
-
-        html += '</div>';
-        return html;
-    }
-
-    function getAcceptAttribute(field) {
-        if (field && field.accept) return field.accept;
-        const allowed = Array.isArray(uploadRules.allowedTypes) ? uploadRules.allowedTypes : [];
-        return allowed.map((type) => `.${type}`).join(',');
-    }
-
-    function renderContactForm() {
-        currentStep = steps.length;
-        getContainer().removeClass('full-width-mode');
-        updateCoverContent('testimonial');
-        $('#fnd-progress-bar').hide();
-        $('#fnd-step-banner').html(`
-            <h2>We’ll Take It From Here</h2>
-            <p style="margin:0 auto;">Share your details and we’ll send your personalised project estimate.</p>
-        `).show();
-
-        getCanvas().html(`
-            <div class="foundation-lead-form">
-                <div class="foundation-contact-grid foundation-contact-grid-single">
-                    <div>
-                        <label for="lead-name">Full Name <span style="color:#c62828">*</span></label>
-                        <input type="text" id="lead-name" placeholder="John Doe" aria-required="true" required>
-                    </div>
-                    <div>
-                        <label for="company-name">Company Name <span style="color:#c62828">*</span></label>
-                        <input type="text" id="company-name" placeholder="Company name" aria-required="true" required>
-                    </div>
-                </div>
-                <div class="foundation-contact-grid foundation-contact-grid-double">
-                    <div>
-                        <label for="lead-phone">Phone Number <span style="color:#c62828">*</span></label>
-                        <input type="text" id="lead-phone" placeholder="+44 7700 900000" aria-required="true" required>
-                    </div>
-                    <div>
-                        <label for="lead-email">Email Address <span style="color:#c62828">*</span></label>
-                        <input type="email" id="lead-email" placeholder="john@company.com" aria-required="true" required>
-                    </div>
-                </div>
-                <div class="foundation-contact-grid foundation-contact-grid-single">
-                    <div>
-                        <label for="lead-website">Website (Optional)</label>
-                        <input type="url" id="lead-website" placeholder="https://">
-                    </div>
-                </div>
-                <div style="display:none;">
-                    <label for="foundation-honey">Do not fill this out if you are human</label>
-                    <input type="text" id="foundation-honey" name="foundation_honey" tabindex="-1" autocomplete="off">
-                </div>
-                <div class="foundation-form-actions">
-                    <button id="foundation-back-to-steps" type="button" class="foundation-secondary-pill">Back</button>
-                    <button id="foundation-save-and-email" type="button" class="foundation-secondary-pill">Save &amp; email link</button>
-                    <button id="foundation-submit-lead" type="button" class="foundation-primary-pill foundation-submit-pill">${escapeHtml(getTriggerLabel())}</button>
-                </div>
-                <p id="submission-error" role="alert" style="color:#c62828;display:none;text-align:center;margin-top:12px;font-weight:600;"></p>
-            </div>
-        `).hide().fadeIn(250, () => $('#lead-name').trigger('focus'));
-
-        $('.wizard-footer').hide();
-    }
-
-    function validateContactForm() {
-        const fields = [
-            { id: '#lead-name', label: 'full name' },
-            { id: '#company-name', label: 'company name' },
-            { id: '#lead-phone', label: 'phone number' },
-            { id: '#lead-email', label: 'email address' }
-        ];
-
-        for (const field of fields) {
-            const $input = $(field.id);
-            const value = ($input.val() || '').trim();
-            const valid = value !== '';
-            $input.attr('aria-invalid', valid ? 'false' : 'true');
-            if (!valid) {
-                $('#submission-error').text(`Please fill in your ${field.label}.`).show();
-                $input.trigger('focus');
-                return false;
-            }
-        }
-
-        const email = ($('#lead-email').val() || '').trim();
-        if (!validateEmail(email)) {
-            $('#submission-error').text('Please enter a valid email address.').show();
-            $('#lead-email').attr('aria-invalid', 'true').trigger('focus');
-            return false;
-        }
-
-        return true;
-    }
-
-    function validateEmail(email) {
-        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-    }
-
-    function handleFileSelection(input) {
-        const fieldId = $(input).data('field-id');
-        const field = findFieldById(fieldId);
-        const files = Array.from(input.files || []);
-        const $summary = getCanvas().find(`[data-file-summary-for="${fieldId}"]`).first();
-        const $error = $('#foundation-step-error');
-
-        const maxFiles = Number(field && field.max_files ? field.max_files : (uploadRules.maxFilesPerField || 5));
-        const maxFileMb = Number(field && field.max_file_size_mb ? field.max_file_size_mb : (uploadRules.maxFileSizeMb || 10));
-        const allowedExtensions = Array.isArray(uploadRules.allowedTypes) ? uploadRules.allowedTypes.map((ext) => String(ext).toLowerCase()) : [];
-
-        if (files.length > maxFiles) {
-            input.value = '';
-            uploadedFiles[fieldId] = [];
-            userSelections[fieldId] = '';
-            $summary.text(`Please upload up to ${maxFiles} files.`);
-            $error.text(`Please upload up to ${maxFiles} files for “${field && field.label ? field.label : 'this upload field'}”.`).show();
-            return;
-        }
-
-        for (const file of files) {
-            const extension = (file.name.split('.').pop() || '').toLowerCase();
-            if (allowedExtensions.length && !allowedExtensions.includes(extension)) {
-                input.value = '';
-                uploadedFiles[fieldId] = [];
-                userSelections[fieldId] = '';
-                $summary.text(`${file.name} is not an allowed file type.`);
-                $error.text(`${file.name} is not an allowed file type.`).show();
-                return;
-            }
-            if (file.size > maxFileMb * 1024 * 1024) {
-                input.value = '';
-                uploadedFiles[fieldId] = [];
-                userSelections[fieldId] = '';
-                $summary.text(`${file.name} is larger than ${maxFileMb}MB.`);
-                $error.text(`${file.name} is larger than ${maxFileMb}MB.`).show();
-                return;
-            }
-        }
-
-        uploadedFiles[fieldId] = files;
-        userSelections[fieldId] = files.map((file) => file.name).join(', ');
-        $(input).attr('aria-invalid', files.length ? 'false' : 'true');
-        $summary.text(files.length ? files.map((file) => file.name).join(', ') : 'No files selected yet.');
-        clearStepError();
-    }
-
-    function findFieldById(fieldId) {
-        for (const step of steps) {
-            const match = (step.fields || []).find((field) => field.id === fieldId);
-            if (match) return match;
-        }
-        return null;
-    }
-
-	function renderSuccessScreen(serverTotal = null, customerEmailStatus = 'disabled') {
-	    const totalPrice = serverTotal === null ? 0 : serverTotal;
-	    const safeName = escapeHtml(($('#lead-name').val() || '').trim());
-	    let safeMessage = '';
-	    const defaultSuccessMessage = quoteModeEnabled
-	        ? 'We’ll review your needs and follow up with a custom quote.'
-	        : 'A detailed copy of your proposal has been sent to your email.';
-	    if (customerEmailStatus === 'sent') {
-	        safeMessage = escapeHtml(branding.successMessage || defaultSuccessMessage);
-	    } else if (customerEmailStatus === 'failed') {
-	        safeMessage = 'Your request has been sent to our team. A customer email could not be sent this time, but we still have your brief.';
-	    } else {
-	        safeMessage = 'Your request has been sent to our team. We will follow up with you shortly.';
-	    }
-	    const estimateMarkup = quoteModeEnabled ? '' : `
-	                <div style="font-size:16px;text-transform:uppercase;letter-spacing:1px;color:var(--fnd-text-muted);margin-bottom:10px;margin-top:40px;">Estimated Investment</div>
-	                <h1 style="font-size:80px;color:var(--fnd-accent);margin:0;font-weight:800;">${escapeHtml(currencySymbol)}${Number(totalPrice).toLocaleString()}</h1>`;
-
-	    $('#fnd-step-banner').hide();
-	    $('.wizard-footer').hide();
-	    getCanvas().html(`
-	        <div style="text-align:center;padding:60px 0;">
-	            <h2 id="foundation-success-heading" style="font-size:32px;margin-bottom:10px;color:var(--fnd-text);" tabindex="-1">${quoteModeEnabled ? 'Your brief has been sent' : 'Request Received'}</h2>
-	            ${estimateMarkup}
-	            <p style="color:var(--fnd-text-muted);margin-top:20px;font-size:18px;line-height:1.5;">Thank you, ${safeName}.<br>${safeMessage}</p>
-	            <button id="foundation-close-btn" type="button" class="foundation-secondary-pill" style="margin-top:40px;">Close Window</button>
-	        </div>
-        `).hide().fadeIn(300, () => $('#foundation-success-heading').trigger('focus'));
-    }
-
-    document.addEventListener('click', function(e) {
-        const link = e.target.closest('a');
-        const triggerClass = e.target.closest('.foundation-trigger');
-        const triggerId = e.target.closest('#foundation-launch-btn');
-        let isLinkMatch = false;
-        if (link) {
-            const href = link.getAttribute('href') || '';
-            if (href.includes('foundation-form') || href.includes('get-quote')) isLinkMatch = true;
-        }
-        if (isLinkMatch || triggerClass || triggerId) {
-            e.preventDefault();
-            e.stopPropagation();
-            openOverlay();
-        }
-    }, true);
-
-    document.addEventListener('foundation:open', function() {
-        if (getResumeTokenFromUrl()) return;
-        if (!window.foundationAutoOpen) return;
-        window.foundationAutoOpen = false;
-        openOverlay();
-    });
-
-    if (window.foundationAutoOpen && !getResumeTokenFromUrl()) {
-        window.foundationAutoOpen = false;
-        window.setTimeout(openOverlay, 0);
-    }
-
-
-
-    $(document).on('click', '#foundation-save-draft-btn, #foundation-save-and-email', function(e) {
-        e.preventDefault();
-        const sendEmail = this.id === 'foundation-save-and-email';
-        const $button = $(this);
-        const original = $button.text();
-        $button.prop('disabled', true).text(sendEmail ? 'Sending link…' : 'Saving…');
-        saveDraft(sendEmail)
-            .then((data) => {
-                const resumeUrl = data && data.resume_url ? String(data.resume_url) : '';
-                if (!sendEmail && resumeUrl && navigator.clipboard && navigator.clipboard.writeText) {
-                    navigator.clipboard.writeText(resumeUrl).catch(() => null);
-                }
-                const message = sendEmail
-                    ? 'We emailed your magic link. Uploaded files will need to be added again when you return.'
-                    : (resumeUrl ? `Progress saved. Resume link: ${resumeUrl}` : 'Progress saved.');
-                if ($('#submission-error').length) {
-                    $('#submission-error').css('color', 'var(--fnd-accent)').text(message).show();
-                } else {
-                    setStepError(message);
-                }
-            })
-            .catch((error) => {
-                const message = error && error.message ? error.message : 'We could not save your progress right now.';
-                if ($('#submission-error').length) {
-                    $('#submission-error').css('color', '#c62828').text(message).show();
-                } else {
-                    setStepError(message);
-                }
-                trackEvent('failure', message);
-            })
-            .finally(() => {
-                $button.prop('disabled', false).text(original);
-            });
-    });
-
-    $(document).on('click', '#foundation-close-btn', function(e) {
-        e.preventDefault();
-        closeOverlay();
-    });
-
-    $(document).on('keydown', function(e) {
-        if (e.key === 'Escape' && $overlay.hasClass('is-active')) {
-            e.preventDefault();
-            closeOverlay();
-            return;
-        }
-        focusTrap(e);
-    });
-
-    $(document).on('click', '#fnd-theme-toggle', function() {
-        const current = $overlay.attr('data-theme');
-        const next = current === 'dark' ? 'light' : 'dark';
-        $overlay.attr('data-theme', next);
-        $(this).text(next === 'dark' ? 'Light mode' : 'Dark mode').attr('aria-pressed', next === 'light' ? 'true' : 'false');
-    });
-
-    $(document).on('click', '#foundation-start-btn', function() {
-        if (!journeyStarted) {
-            journeyStarted = true;
-            trackEvent('start');
-        }
-        const firstIndex = getNextStepIndex(-1);
-        renderStep(firstIndex);
-    });
-
-    $(document).on('click', '#btn-next', function() {
-        if (!validateCurrentStep()) return;
-        const nextIndex = getNextStepIndex(currentStep);
-        if (nextIndex >= steps.length && !validateCoreSelections()) return;
-        renderStep(nextIndex);
-    });
-
-    $(document).on('click', '#btn-prev', function() {
-        const prevIndex = getPrevStepIndex(currentStep);
-        if (prevIndex === -1) {
-            renderStartScreen();
-        } else {
-            renderStep(prevIndex);
-        }
-    });
-
-    $(document).on('click', '.option-card', function() {
-        const $card = $(this);
-        const $grid = $card.closest('.options-grid');
-        const fieldId = $grid.data('fieldId') || $card.data('fieldId');
-        const multi = String($grid.data('multi')) === 'true';
-        const optionIndex = String($card.data('optionIndex'));
-        const routeStepId = $card.data('routeStepId') || '';
-        const selectionKey = `${fieldId}_options`;
-        let selected = Array.isArray(userSelections[selectionKey]) ? userSelections[selectionKey].map(String) : [];
-
-        if (multi) {
-            if ($card.hasClass('selected')) {
-                selected = selected.filter((idx) => idx !== optionIndex);
-                $card.removeClass('selected').attr('aria-pressed', 'false');
-                if (routeStepId) selectedRouteIds.delete(routeStepId);
-            } else {
-                selected.push(optionIndex);
-                $card.addClass('selected').attr('aria-pressed', 'true');
-                if (routeStepId) selectedRouteIds.add(routeStepId);
-            }
-        } else {
-            $grid.find('.option-card').removeClass('selected').attr('aria-pressed', 'false').each(function() {
-                const rid = $(this).data('routeStepId');
-                if (rid) selectedRouteIds.delete(rid);
-            });
-            selected = [optionIndex];
-            $card.addClass('selected').attr('aria-pressed', 'true');
-            if (routeStepId) selectedRouteIds.add(routeStepId);
-        }
-
-	    userSelections[selectionKey] = selected;
-	    let total = 0;
-	    if (!quoteModeEnabled) {
-	        selected.forEach((idx) => {
-	            const $opt = $grid.find(`.option-card[data-option-index="${idx}"]`);
-	            total += parseFloat($opt.data('price') || 0);
-	        });
-	    }
-	    userSelections[fieldId] = total;
-        clearStepError();
-    });
-
-    $(document).on('input', '.foundation-range', function() {
-        const value = $(this).val();
-        const fieldId = $(this).data('field-id');
-        userSelections[`${fieldId}_val`] = value;
-        $(this).closest('.range-wrapper').find('.range-value').text(value);
-        clearStepError();
-    });
-
-    $(document).on('input change', '.fnd-input[data-field-id]', function() {
-        const fieldId = $(this).data('field-id');
-        const fieldType = $(this).data('field-type');
-        if (!fieldId) return;
-        if (fieldType === 'file_upload') {
-            handleFileSelection(this);
-            return;
-        }
-        userSelections[fieldId] = $(this).val();
-        $(this).attr('aria-invalid', getFieldValue(fieldId) === '' ? 'true' : 'false');
-        clearStepError();
-    });
-
-    $(document).on('click', '#foundation-back-to-steps', function() {
-        const prevVisible = getPrevStepIndex(steps.length);
-        if (prevVisible === -1) renderStartScreen();
-        else renderStep(prevVisible);
-    });
-
-    $(document).on('click', '#foundation-submit-lead', function(e) {
-        e.preventDefault();
-        $('#submission-error').hide().text('');
-        if ($('#foundation-honey').val()) return;
-        if (!validateContactForm()) return;
-        if (!validateCoreSelections()) {
-            $('#submission-error').text($('#foundation-step-error').text()).show();
-            return;
-        }
-
-        const $btn = $(this);
-        $btn.text('Sending Request...').prop('disabled', true);
-
-        const payload = new FormData();
-        payload.append('action', 'foundation_submit_quote');
-        payload.append('nonce', config.nonce || '');
-        payload.append('contact[name]', ($('#lead-name').val() || '').trim());
-        payload.append('contact[email]', ($('#lead-email').val() || '').trim());
-        payload.append('contact[phone]', ($('#lead-phone').val() || '').trim());
-        payload.append('contact[company]', ($('#company-name').val() || '').trim());
-        payload.append('contact[website]', ($('#lead-website').val() || '').trim());
-        payload.append('foundation_honey', ($('#foundation-honey').val() || '').trim());
-
-        Object.entries(userSelections).forEach(([key, value]) => {
-            if (Array.isArray(value)) {
-                value.forEach((item) => payload.append(`selections[${key}][]`, String(item)));
-            } else {
-                payload.append(`selections[${key}]`, String(value));
-            }
-        });
-
-        Object.entries(uploadedFiles).forEach(([fieldId, files]) => {
-            if (!Array.isArray(files)) return;
-            files.forEach((file) => payload.append(`uploads[${fieldId}][]`, file, file.name));
-        });
-
-        fetch(config.ajaxUrl, { method: 'POST', body: payload })
-            .then(async (response) => {
-                let data = null;
-                try {
-                    data = await response.json();
-                } catch (error) {
-                    throw new Error('The server returned an unexpected response.');
-                }
-                if (!response.ok || !data || !data.success) {
-                    const message = data && data.data && data.data.message ? data.data.message : 'We could not send your request right now. Please try again in a moment.';
-                    throw new Error(message);
-                }
-                journeyCompleted = true;
-                renderSuccessScreen(
-                    data.data && typeof data.data.total !== 'undefined' ? data.data.total : null,
-                    data.data && data.data.customer_email_status ? String(data.data.customer_email_status) : 'disabled'
-                );
-            })
-            .catch((error) => {
-                $('#submission-error').text(error.message).show();
-                $btn.text(getTriggerLabel()).prop('disabled', false);
-                trackEvent('failure', error.message || 'Submission failed.');
-            });
-    });
-});
+(function () {
+	'use strict';
+
+	var config = window.foundationConfig || {};
+	var branding = config.branding || {};
+	var uploadRules = config.uploads || {};
+	var pricingCatalog = config.pricingCatalog || {};
+	var currency = branding.currencySymbol || '£';
+	var quoteMode = Boolean(branding.quoteModeEnabled);
+	var steps = normalizeSteps(Array.isArray(config.formData) ? config.formData : []);
+	var overlay = document.getElementById('foundation-app-overlay');
+	if (!overlay || !steps.length) return;
+
+	var state = {
+		view: 'intro',
+		currentStepIndex: -1,
+		selections: {},
+		files: {},
+		contact: { name: '', company: '', email: '', phone: '', website: '', notes: '', privacy: false },
+		routeIds: new Set(),
+		resumeToken: '',
+		started: false,
+		completed: false,
+		lastActiveElement: null,
+		submissionId: createSubmissionId(),
+		savePanelReturnFocus: null
+	};
+
+	trackViewOnce();
+	bindGlobalEvents();
+
+	var resumeTokenFromUrl = getResumeTokenFromUrl();
+	if (resumeTokenFromUrl) restoreDraft(resumeTokenFromUrl);
+	if (window.foundationAutoOpen && !resumeTokenFromUrl) {
+		window.foundationAutoOpen = false;
+		window.setTimeout(openCalculator, 0);
+	}
+
+	function normalizeSteps(input) {
+		return input.map(function (step, stepIndex) {
+			var normalized = Object.assign({
+				id: 'step_' + (stepIndex + 1),
+				title: 'Screen ' + (stepIndex + 1),
+				subtitle: '',
+				is_conditional: false,
+				fields: []
+			}, step || {});
+			normalized.is_conditional = normalizeBool(normalized.is_conditional);
+			normalized.fields = Array.isArray(normalized.fields) ? normalized.fields.map(function (field, fieldIndex) {
+				var item = Object.assign({ id: 'field_' + (fieldIndex + 1), type: 'text_input', label: '', helper: '', placeholder: '', required: false }, field || {});
+				item.required = normalizeBool(item.required);
+				item.options = Array.isArray(item.options) ? item.options : [];
+				item.selection_mode = item.selection_mode === 'multi' ? 'multi' : 'single';
+				return item;
+			}) : [];
+			return normalized;
+		});
+	}
+
+	function normalizeBool(value) {
+		if (typeof value === 'boolean') return value;
+		return ['1', 'true', 'yes', 'on'].indexOf(String(value || '').toLowerCase()) !== -1;
+	}
+
+	function escapeHtml(value) {
+		return String(value == null ? '' : value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#039;');
+	}
+
+	function createSubmissionId() {
+		if (window.crypto && typeof window.crypto.randomUUID === 'function') return window.crypto.randomUUID();
+		return 'fpc-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+	}
+
+	function bindGlobalEvents() {
+		document.addEventListener('foundation:open', function () {
+			if (window.foundationAutoOpen) window.foundationAutoOpen = false;
+			openCalculator();
+		});
+		document.addEventListener('keydown', function (event) {
+			if (!overlay.classList.contains('is-active')) return;
+			if (event.key === 'Escape') {
+				var savePanel = overlay.querySelector('.foundation-save-panel');
+				if (savePanel) closeSavePanel();
+				else closeCalculator();
+				return;
+			}
+			if (event.key === 'Tab') trapFocus(event);
+		});
+	}
+
+	function openCalculator() {
+		if (overlay.classList.contains('is-active')) return;
+		state.lastActiveElement = document.activeElement;
+		if (!state.resumeToken && !state.completed) {
+			state.view = 'intro';
+			state.currentStepIndex = -1;
+		}
+		buildShell();
+		overlay.hidden = false;
+		overlay.className = 'foundation-overlay is-active';
+		document.documentElement.classList.add('foundation-modal-open');
+		document.body.classList.add('foundation-modal-open');
+		renderCurrentView();
+		window.setTimeout(function () {
+			var target = overlay.querySelector('[data-foundation-initial-focus], button, input, textarea, select, a[href]');
+			if (target) target.focus();
+		}, 20);
+	}
+
+	function closeCalculator() {
+		if (state.started && !state.completed) trackEvent('incomplete');
+		overlay.classList.remove('is-active');
+		window.setTimeout(function () {
+			overlay.hidden = true;
+			overlay.innerHTML = '';
+			document.documentElement.classList.remove('foundation-modal-open');
+			document.body.classList.remove('foundation-modal-open');
+			if (state.lastActiveElement && typeof state.lastActiveElement.focus === 'function') state.lastActiveElement.focus();
+			if (state.completed) resetCompletedSession();
+		}, 180);
+	}
+
+	function resetCompletedSession() {
+		state.view = 'intro';
+		state.currentStepIndex = -1;
+		state.selections = {};
+		state.files = {};
+		state.contact = { name: '', company: '', email: '', phone: '', website: '', notes: '', privacy: false };
+		state.routeIds = new Set();
+		state.resumeToken = '';
+		state.started = false;
+		state.completed = false;
+		state.serverQuote = null;
+		state.customerEmailStatus = '';
+		state.adminEmailStatus = '';
+		state.serverMessage = '';
+		state.reference = '';
+		state.submissionId = createSubmissionId();
+	}
+
+	function trapFocus(event) {
+		var scope = overlay.querySelector('.foundation-save-panel') || overlay;
+		var nodes = Array.prototype.slice.call(scope.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+			.filter(function (node) { return node.offsetParent !== null && !node.hidden; });
+		if (!nodes.length) return;
+		var first = nodes[0];
+		var last = nodes[nodes.length - 1];
+		if (!scope.contains(document.activeElement)) {
+			event.preventDefault();
+			(event.shiftKey ? last : first).focus();
+			return;
+		}
+		if (event.shiftKey && document.activeElement === first) {
+			event.preventDefault();
+			last.focus();
+		} else if (!event.shiftKey && document.activeElement === last) {
+			event.preventDefault();
+			first.focus();
+		}
+	}
+
+	function buildShell() {
+		var logo = branding.logoUrl ? '<img class="foundation-modal-logo" src="' + escapeHtml(branding.logoUrl) + '" alt="">' : '';
+		overlay.setAttribute('role', 'dialog');
+		overlay.setAttribute('aria-modal', 'true');
+		overlay.setAttribute('aria-labelledby', 'foundation-modal-title');
+		overlay.innerHTML = '' +
+			'<div class="foundation-modal">' +
+				'<header class="foundation-modal-header">' +
+					'<div class="foundation-brand">' + logo + '<div><span>Project estimate</span><strong id="foundation-modal-title">' + escapeHtml(branding.wizardTitle || 'Inkfire Project Calculator') + '</strong></div></div>' +
+					'<div class="foundation-header-actions">' +
+						'<button type="button" class="foundation-header-button" data-foundation-save-progress>Save progress</button>' +
+						'<button type="button" class="foundation-close-button" data-foundation-close aria-label="Close calculator"><span aria-hidden="true">×</span></button>' +
+					'</div>' +
+				'</header>' +
+				'<div class="foundation-progress-wrap" hidden><div class="foundation-progress-meta"><span data-foundation-progress-label></span><span data-foundation-progress-count></span></div><div class="foundation-progress-track" aria-hidden="true"><span data-foundation-progress-bar></span></div></div>' +
+				'<div class="foundation-message" role="alert" aria-live="assertive" hidden></div>' +
+				'<div class="foundation-modal-body">' +
+					'<main class="foundation-canvas" data-foundation-canvas></main>' +
+					'<aside class="foundation-live-summary" data-foundation-live-summary aria-label="Current estimate"></aside>' +
+				'</div>' +
+				'<footer class="foundation-modal-footer" hidden>' +
+					'<button type="button" class="foundation-secondary-button" data-foundation-back>Back</button>' +
+					'<button type="button" class="foundation-primary-button" data-foundation-next>Continue</button>' +
+				'</footer>' +
+			'</div>';
+
+		overlay.querySelector('[data-foundation-close]').addEventListener('click', closeCalculator);
+		overlay.querySelector('[data-foundation-save-progress]').addEventListener('click', openSavePanel);
+		overlay.querySelector('[data-foundation-back]').addEventListener('click', goBack);
+		overlay.querySelector('[data-foundation-next]').addEventListener('click', goNext);
+	}
+
+	function getCanvas() { return overlay.querySelector('[data-foundation-canvas]'); }
+	function getFooter() { return overlay.querySelector('.foundation-modal-footer'); }
+	function getNextButton() { return overlay.querySelector('[data-foundation-next]'); }
+	function getBackButton() { return overlay.querySelector('[data-foundation-back]'); }
+
+	function updateHeaderActions() {
+		var saveButton = overlay.querySelector('[data-foundation-save-progress]');
+		if (saveButton) saveButton.hidden = state.view === 'intro' || state.view === 'success' || state.completed;
+	}
+
+	function renderCurrentView() {
+		clearMessage();
+		state.routeIds = computeRouteIds();
+		if (state.view === 'intro') renderIntro();
+		else if (state.view === 'step') renderStep(state.currentStepIndex);
+		else if (state.view === 'review') renderReview();
+		else if (state.view === 'contact') renderContact();
+		else if (state.view === 'success') renderSuccess(state.serverQuote || calculateQuote());
+		updateHeaderActions();
+		updateLiveSummary();
+	}
+
+	function renderIntro() {
+		setProgress(false);
+		setFooter(false);
+		var image = branding.introImageUrl ? '<div class="foundation-intro-image" role="img" aria-label="Inkfire team" style="background-image:url(\'' + escapeHtml(String(branding.introImageUrl).replace(/'/g, '%27')) + '\')"></div>' : '';
+		var testimonial = branding.testimonialQuote ? '<blockquote><p>' + escapeHtml(branding.testimonialQuote) + '</p><cite>' + escapeHtml(branding.testimonialAttribution || '') + '</cite></blockquote>' : '';
+		getCanvas().innerHTML = '<section class="foundation-intro">' + image + '<div class="foundation-intro-copy"><p class="foundation-kicker">One joined-up estimate</p><h1>' + escapeHtml(branding.introHeading || 'Build your project estimate') + '</h1><p>' + escapeHtml(branding.introText || '') + '</p><ul class="foundation-intro-points"><li>One-off and monthly costs shown separately</li><li>Only relevant questions appear</li><li>Complex work is marked for a tailored quote</li></ul>' + testimonial + '<button type="button" class="foundation-primary-button foundation-large-button" data-foundation-start data-foundation-initial-focus>Start my estimate</button><p class="foundation-small-print">Usually takes around 3 to 6 minutes. You can save and return later.</p></div></section>';
+		getCanvas().querySelector('[data-foundation-start]').addEventListener('click', function () {
+			state.started = true;
+			trackEvent('start');
+			var visible = getVisibleStepIndexes();
+			if (!visible.length) return showMessage('The calculator journey is not configured yet.');
+			state.view = 'step';
+			state.currentStepIndex = visible[0];
+			renderCurrentView();
+			focusViewHeading();
+		});
+	}
+
+	function renderStep(index) {
+		state.routeIds = computeRouteIds();
+		var visible = getVisibleStepIndexes();
+		if (visible.indexOf(index) === -1) {
+			index = visible.length ? visible[0] : -1;
+			state.currentStepIndex = index;
+		}
+		if (index < 0 || !steps[index]) {
+			state.view = 'review';
+			renderReview();
+			return;
+		}
+		var step = steps[index];
+		setProgress(true, visible.indexOf(index), visible.length, step.title);
+		setFooter(true, visible.indexOf(index) > 0, 'Continue');
+		var fieldsMarkup = (step.fields || []).map(renderField).join('');
+		getCanvas().innerHTML = '<section class="foundation-step" data-step-id="' + escapeHtml(step.id) + '"><p class="foundation-kicker">Your project</p><h1 tabindex="-1" data-foundation-view-heading>' + escapeHtml(step.title) + '</h1>' + (step.subtitle ? '<p class="foundation-step-intro">' + escapeHtml(step.subtitle) + '</p>' : '') + '<div class="foundation-fields">' + fieldsMarkup + '</div></section>';
+		bindStepInputs(step);
+	}
+
+	function renderField(field) {
+		if (!field || ['calculation'].indexOf(field.type) !== -1) return '';
+		if (field.type === 'section_title') return '<h2 class="foundation-section-title">' + escapeHtml(field.text || field.label) + '</h2>';
+		if (field.type === 'description') return '<p class="foundation-description">' + escapeHtml(field.text || '') + '</p>';
+		if (field.type === 'divider') return '<hr class="foundation-divider">';
+		var required = field.required ? '<span class="foundation-required">Required</span>' : '';
+		var helper = field.helper ? '<p class="foundation-field-helper" id="' + escapeHtml(field.id) + '-help">' + escapeHtml(field.helper) + '</p>' : '';
+		var header = '<div class="foundation-field-heading"><legend>' + escapeHtml(field.label || '') + '</legend>' + required + '</div>' + helper;
+
+		if (field.type === 'service_card') {
+			var selected = getSelectedIndexes(field.id);
+			var isMulti = field.selection_mode === 'multi';
+			var type = isMulti ? 'checkbox' : 'radio';
+			var options = (field.options || []).map(function (option, index) {
+				var checked = selected.indexOf(String(index)) !== -1 ? ' checked' : '';
+				var hint = getOptionHint(option);
+				return '<label class="foundation-option-card' + (checked ? ' is-selected' : '') + '"><input type="' + type + '" name="' + escapeHtml(field.id) + (isMulti ? '[]' : '') + '" value="' + index + '" data-foundation-option data-field-id="' + escapeHtml(field.id) + '"' + checked + '><span class="foundation-option-check" aria-hidden="true"></span><span class="foundation-option-copy"><strong>' + escapeHtml(option.label || 'Option') + '</strong>' + (hint ? '<small>' + escapeHtml(hint) + '</small>' : '') + '</span></label>';
+			}).join('');
+			return '<fieldset class="foundation-field foundation-card-field" data-foundation-field="' + escapeHtml(field.id) + '">' + header + '<div class="foundation-option-grid' + (field.options && field.options.length > 5 ? ' is-compact' : '') + '">' + options + '</div></fieldset>';
+		}
+
+		if (field.type === 'toggle') {
+			var toggleSelected = getSelectedIndexes(field.id);
+			var yesChecked = toggleSelected.indexOf('0') !== -1 ? ' checked' : '';
+			var noChecked = toggleSelected.indexOf('1') !== -1 ? ' checked' : '';
+			return '<fieldset class="foundation-field" data-foundation-field="' + escapeHtml(field.id) + '">' + header + '<div class="foundation-toggle-group"><label class="foundation-toggle-choice' + (yesChecked ? ' is-selected' : '') + '"><input type="radio" name="' + escapeHtml(field.id) + '" value="0" data-foundation-option data-field-id="' + escapeHtml(field.id) + '"' + yesChecked + '><span>' + escapeHtml(field.yes_label || 'Yes') + '</span></label><label class="foundation-toggle-choice' + (noChecked ? ' is-selected' : '') + '"><input type="radio" name="' + escapeHtml(field.id) + '" value="1" data-foundation-option data-field-id="' + escapeHtml(field.id) + '"' + noChecked + '><span>' + escapeHtml(field.no_label || 'No') + '</span></label></div></fieldset>';
+		}
+
+		if (field.type === 'number_input' || field.type === 'range_slider') {
+			var numericValue = getNumericSelection(field.id);
+			var min = field.min != null ? Number(field.min) : 0;
+			var max = field.max != null ? Number(field.max) : 1000;
+			var step = field.step != null ? Number(field.step) : 1;
+			var inputType = field.type === 'range_slider' ? 'range' : 'number';
+			var valueAttr = numericValue !== '' ? ' value="' + escapeHtml(numericValue) + '"' : (field.type === 'range_slider' ? ' value="' + min + '"' : '');
+			var described = field.helper ? ' aria-describedby="' + escapeHtml(field.id) + '-help"' : '';
+			return '<fieldset class="foundation-field foundation-number-field" data-foundation-field="' + escapeHtml(field.id) + '">' + header + '<div class="foundation-number-input"><input id="' + escapeHtml(field.id) + '" type="' + inputType + '" inputmode="decimal" min="' + min + '" max="' + max + '" step="' + step + '" data-foundation-value data-field-id="' + escapeHtml(field.id) + '"' + valueAttr + described + '><span>' + escapeHtml(field.unit || 'units') + '</span></div>' + (field.type === 'range_slider' ? '<output data-foundation-range-output>' + escapeHtml(numericValue !== '' ? numericValue : min) + '</output>' : '') + '</fieldset>';
+		}
+
+		if (field.type === 'text_input') {
+			var value = state.selections[field.id] || '';
+			var inputTypeText = /url|website/i.test(field.id + ' ' + field.label) ? 'url' : 'text';
+			var inputMaxLength = inputTypeText === 'url' ? 500 : 5000;
+			return '<div class="foundation-field" data-foundation-field="' + escapeHtml(field.id) + '"><div class="foundation-field-heading"><label for="' + escapeHtml(field.id) + '">' + escapeHtml(field.label || '') + '</label>' + required + '</div>' + helper + '<input id="' + escapeHtml(field.id) + '" type="' + inputTypeText + '" maxlength="' + inputMaxLength + '" value="' + escapeHtml(value) + '" placeholder="' + escapeHtml(field.placeholder || '') + '" data-foundation-value data-field-id="' + escapeHtml(field.id) + '"></div>';
+		}
+
+		if (field.type === 'rich_text') {
+			var textValue = state.selections[field.id] || '';
+			return '<div class="foundation-field" data-foundation-field="' + escapeHtml(field.id) + '"><div class="foundation-field-heading"><label for="' + escapeHtml(field.id) + '">' + escapeHtml(field.label || '') + '</label>' + required + '</div>' + helper + '<textarea id="' + escapeHtml(field.id) + '" rows="5" maxlength="5000" placeholder="' + escapeHtml(field.placeholder || '') + '" data-foundation-value data-field-id="' + escapeHtml(field.id) + '">' + escapeHtml(textValue) + '</textarea></div>';
+		}
+
+		if (field.type === 'file_upload') {
+			var names = state.files[field.id] && state.files[field.id].length ? state.files[field.id].map(function (file) { return file.name; }).join(', ') : 'No files selected';
+			var configuredAccept = String(field.accept || '').trim();
+			var allowedAccept = Array.isArray(uploadRules.allowedTypes) ? uploadRules.allowedTypes.map(function (extension) { return '.' + String(extension).replace(/^\./, ''); }).join(',') : '';
+			var acceptAttribute = configuredAccept || allowedAccept;
+			return '<div class="foundation-field" data-foundation-field="' + escapeHtml(field.id) + '"><div class="foundation-field-heading"><label for="' + escapeHtml(field.id) + '">' + escapeHtml(field.label || '') + '</label>' + required + '</div>' + helper + '<input id="' + escapeHtml(field.id) + '" type="file" multiple' + (acceptAttribute ? ' accept="' + escapeHtml(acceptAttribute) + '"' : '') + ' data-foundation-file data-field-id="' + escapeHtml(field.id) + '"><p class="foundation-file-summary" data-foundation-file-summary>' + escapeHtml(names) + '</p></div>';
+		}
+		return '';
+	}
+
+	function getOptionHint(option) {
+		if (!option) return '';
+		if (option.pricing_type === 'manual') return 'Tailored quote';
+		if (option.price_key && pricingCatalog[option.price_key] != null) return formatMoney(pricingCatalog[option.price_key]) + (option.billing === 'monthly' ? ' / month' : ' one-off');
+		if (option.unit_price_key && pricingCatalog[option.unit_price_key] != null && option.quantity_min != null) {
+			var min = Number(pricingCatalog[option.unit_price_key]) * Number(option.quantity_min || 0);
+			var max = Number(pricingCatalog[option.unit_price_key]) * Number(option.quantity_max != null ? option.quantity_max : option.quantity_min || 0);
+			return formatRange(min, max) + (option.billing === 'monthly' ? ' / month' : ' one-off');
+		}
+		return '';
+	}
+
+	function bindStepInputs(step) {
+		getCanvas().querySelectorAll('[data-foundation-option]').forEach(function (input) {
+			input.addEventListener('change', function () {
+				var field = findField(input.getAttribute('data-field-id'));
+				if (!field) return;
+				var key = field.id + '_options';
+				if (field.type === 'service_card' && field.selection_mode === 'multi') {
+					var selected = getSelectedIndexes(field.id);
+					var value = String(input.value);
+					if (input.checked && selected.indexOf(value) === -1) selected.push(value);
+					if (!input.checked) selected = selected.filter(function (item) { return item !== value; });
+					state.selections[key] = selected;
+				} else {
+					state.selections[key] = input.checked ? [String(input.value)] : [];
+				}
+				state.routeIds = computeRouteIds();
+				refreshSelectionStyles(input.closest('[data-foundation-field]'));
+				clearFieldError(field.id);
+				updateLiveSummary();
+			});
+		});
+		getCanvas().querySelectorAll('[data-foundation-value]').forEach(function (input) {
+			var eventName = input.tagName === 'TEXTAREA' ? 'input' : 'input';
+			input.addEventListener(eventName, function () {
+				var fieldId = input.getAttribute('data-field-id');
+				var field = findField(fieldId);
+				if (!field) return;
+				if (field.type === 'number_input' || field.type === 'range_slider') {
+					state.selections[fieldId + '_val'] = input.value;
+					var output = input.closest('[data-foundation-field]') && input.closest('[data-foundation-field]').querySelector('[data-foundation-range-output]');
+					if (output) output.textContent = input.value;
+				} else state.selections[fieldId] = input.value;
+				clearFieldError(fieldId);
+				updateLiveSummary();
+			});
+		});
+		getCanvas().querySelectorAll('[data-foundation-file]').forEach(function (input) {
+			input.addEventListener('change', function () { handleFiles(input); });
+		});
+	}
+
+	function refreshSelectionStyles(fieldRoot) {
+		if (!fieldRoot) return;
+		fieldRoot.querySelectorAll('.foundation-option-card, .foundation-toggle-choice').forEach(function (label) {
+			var input = label.querySelector('input');
+			label.classList.toggle('is-selected', Boolean(input && input.checked));
+		});
+	}
+
+	function handleFiles(input) {
+		var fieldId = input.getAttribute('data-field-id');
+		var field = findField(fieldId) || {};
+		var files = Array.prototype.slice.call(input.files || []);
+		var maxFiles = Number(field.max_files || uploadRules.maxFilesPerField || 5);
+		var maxFileMb = Number(field.max_file_size_mb || uploadRules.maxFileSizeMb || 10);
+		var allowed = Array.isArray(uploadRules.allowedTypes) ? uploadRules.allowedTypes.map(function (item) { return String(item).toLowerCase(); }) : [];
+		var totalBytes = 0;
+		if (files.length > maxFiles) return rejectFiles(input, fieldId, 'Choose no more than ' + maxFiles + ' files.');
+		for (var i = 0; i < files.length; i += 1) {
+			var file = files[i];
+			var extension = String(file.name.split('.').pop() || '').toLowerCase();
+			if (allowed.length && allowed.indexOf(extension) === -1) return rejectFiles(input, fieldId, file.name + ' is not an allowed file type.');
+			if (file.size > maxFileMb * 1024 * 1024) return rejectFiles(input, fieldId, file.name + ' is larger than ' + maxFileMb + 'MB.');
+			totalBytes += file.size;
+		}
+		if (totalBytes > Number(uploadRules.maxTotalSizeMb || 25) * 1024 * 1024) return rejectFiles(input, fieldId, 'The selected files exceed the total upload limit.');
+		state.files[fieldId] = files;
+		state.selections[fieldId] = files.map(function (file) { return file.name; }).join(', ');
+		var summary = input.parentNode.querySelector('[data-foundation-file-summary]');
+		if (summary) summary.textContent = files.length ? files.map(function (file) { return file.name; }).join(', ') : 'No files selected';
+		clearFieldError(fieldId);
+	}
+
+	function rejectFiles(input, fieldId, message) {
+		input.value = '';
+		state.files[fieldId] = [];
+		state.selections[fieldId] = '';
+		showMessage(message);
+		input.focus();
+	}
+
+	function goNext() {
+		clearMessage();
+		if (state.view === 'step') {
+			if (!validateStep(state.currentStepIndex)) return;
+			state.routeIds = computeRouteIds();
+			var visible = getVisibleStepIndexes();
+			var position = visible.indexOf(state.currentStepIndex);
+			if (position >= 0 && position < visible.length - 1) {
+				state.currentStepIndex = visible[position + 1];
+				renderCurrentView();
+				focusViewHeading();
+			} else {
+				state.view = 'review';
+				renderCurrentView();
+				focusViewHeading();
+			}
+		} else if (state.view === 'review') {
+			state.view = 'contact';
+			renderCurrentView();
+			focusViewHeading();
+		}
+	}
+
+	function goBack() {
+		clearMessage();
+		if (state.view === 'contact') {
+			captureContactValues();
+			state.view = 'review';
+			renderCurrentView();
+			focusViewHeading();
+			return;
+		}
+		if (state.view === 'review') {
+			var reviewVisible = getVisibleStepIndexes();
+			if (reviewVisible.length) {
+				state.view = 'step';
+				state.currentStepIndex = reviewVisible[reviewVisible.length - 1];
+				renderCurrentView();
+				focusViewHeading();
+			}
+			return;
+		}
+		if (state.view === 'step') {
+			var visible = getVisibleStepIndexes();
+			var position = visible.indexOf(state.currentStepIndex);
+			if (position > 0) {
+				state.currentStepIndex = visible[position - 1];
+				renderCurrentView();
+				focusViewHeading();
+			} else {
+				state.view = 'intro';
+				state.currentStepIndex = -1;
+				renderCurrentView();
+				focusViewHeading();
+			}
+		}
+	}
+
+	function validateStep(index) {
+		var step = steps[index];
+		if (!step) return true;
+		for (var i = 0; i < step.fields.length; i += 1) {
+			var field = step.fields[i];
+			if (!field.required || ['calculation', 'section_title', 'description', 'divider'].indexOf(field.type) !== -1) continue;
+			var valid = true;
+			if (field.type === 'service_card' || field.type === 'toggle') valid = getSelectedIndexes(field.id).length > 0;
+			else if (field.type === 'number_input' || field.type === 'range_slider') {
+				var raw = getNumericSelection(field.id);
+				var number = Number(raw);
+				var min = Number(field.min != null ? field.min : 0);
+				var max = Number(field.max != null ? field.max : Number.MAX_SAFE_INTEGER);
+				var stepValue = Math.max(0.01, Number(field.step != null ? field.step : 1));
+				var onStep = Number.isFinite(number) && Math.abs(((number - min) / stepValue) - Math.round((number - min) / stepValue)) <= 0.00001;
+				valid = raw !== '' && Number.isFinite(number) && number >= min && number <= max && onStep;
+			} else if (field.type === 'file_upload') valid = Boolean(state.files[field.id] && state.files[field.id].length);
+			else valid = String(state.selections[field.id] || '').trim() !== '';
+			if (!valid) {
+				markFieldError(field.id, 'Please complete “' + (field.label || 'this question') + '” before continuing.');
+				return false;
+			}
+		}
+		return true;
+	}
+
+	function markFieldError(fieldId, message) {
+		showMessage(message);
+		var root = getCanvas().querySelector('[data-foundation-field="' + cssEscape(fieldId) + '"]');
+		if (root) {
+			root.classList.add('has-error');
+			var target = root.querySelector('input, textarea, select, button');
+			if (target) {
+				target.setAttribute('aria-invalid', 'true');
+				target.focus();
+			}
+		}
+	}
+
+	function clearFieldError(fieldId) {
+		var root = getCanvas().querySelector('[data-foundation-field="' + cssEscape(fieldId) + '"]');
+		if (root) {
+			root.classList.remove('has-error');
+			root.querySelectorAll('[aria-invalid="true"]').forEach(function (node) { node.setAttribute('aria-invalid', 'false'); });
+		}
+		clearMessage();
+	}
+
+	function cssEscape(value) {
+		if (window.CSS && window.CSS.escape) return window.CSS.escape(String(value));
+		return String(value).replace(/[^a-zA-Z0-9_-]/g, '\\$&');
+	}
+
+	function renderReview() {
+		state.routeIds = computeRouteIds();
+		var quote = calculateQuote();
+		setProgress(true, getVisibleStepIndexes().length, getVisibleStepIndexes().length + 2, 'Review');
+		setFooter(true, true, 'Continue to your details');
+		var totals = renderQuoteTotals(quote, true);
+		var lines = quote.line_items.length ? '<div class="foundation-review-list">' + quote.line_items.map(function (item) {
+			return '<div><span>' + escapeHtml(item.label) + '</span><strong>' + escapeHtml(formatRange(item.min, item.max)) + (item.billing === 'monthly' ? ' / month' : '') + '</strong></div>';
+		}).join('') + '</div>' : '';
+		var manual = quote.manual_items.length ? '<section class="foundation-manual-review"><h2>Items needing a tailored quote</h2>' + quote.manual_items.map(function (item) { return '<div><strong>' + escapeHtml(item.label) + '</strong><p>' + escapeHtml(item.note) + '</p></div>'; }).join('') + '</section>' : '';
+		var empty = !quote.has_pricing && !quote.manual_items.length ? '<p class="foundation-empty-state">Choose at least one priced service or tailored-quote item before continuing.</p>' : '';
+		getCanvas().innerHTML = '<section class="foundation-review"><p class="foundation-kicker">Nearly there</p><h1 tabindex="-1" data-foundation-view-heading>Your estimated quote</h1><p class="foundation-step-intro">Here is the planning estimate based on your answers. One-off work and ongoing support are kept separate.</p>' + totals + lines + manual + empty + '<div class="foundation-estimate-note"><strong>Before you send it</strong><p>' + escapeHtml(branding.vatNote || '') + '</p><p>' + escapeHtml(branding.estimateDisclaimer || '') + '</p></div></section>';
+	}
+
+	function renderQuoteTotals(quote, prominent) {
+		if (quoteMode) return '<div class="foundation-quote-mode-note"><strong>Tailored quotation</strong><span>Inkfire will review your selections and prepare the right quote.</span></div>';
+		var cards = '';
+		if (quote.one_off_max > 0) cards += '<div class="foundation-total-card"><span>One-off estimate</span><strong>' + escapeHtml(formatRange(quote.one_off_min, quote.one_off_max)) + '</strong><small>excluding VAT</small></div>';
+		if (quote.monthly_max > 0) cards += '<div class="foundation-total-card"><span>Monthly estimate</span><strong>' + escapeHtml(formatRange(quote.monthly_min, quote.monthly_max)) + '</strong><small>per month, excluding VAT</small></div>';
+		if (!cards) cards = '<div class="foundation-total-card is-empty"><span>Calculated estimate</span><strong>Tailored quote</strong><small>We need to confirm the scope</small></div>';
+		return '<div class="foundation-total-grid' + (prominent ? ' is-prominent' : '') + '">' + cards + '</div>';
+	}
+
+	function renderContact() {
+		setProgress(true, getVisibleStepIndexes().length + 1, getVisibleStepIndexes().length + 2, 'Your details');
+		setFooter(false);
+		var requiredPhone = Boolean(branding.phoneRequired);
+		var privacyText = branding.privacyConsentLabel || 'I agree that Inkfire may use these details to respond to my enquiry.';
+		var privacyLink = branding.privacyPolicyUrl ? ' <a href="' + escapeHtml(branding.privacyPolicyUrl) + '" target="_blank" rel="noopener noreferrer">Read the privacy policy</a>.' : '';
+		getCanvas().innerHTML = '<section class="foundation-contact"><p class="foundation-kicker">Send your estimate</p><h1 tabindex="-1" data-foundation-view-heading>Where should we send it?</h1><p class="foundation-step-intro">We will email your estimate and use your answers to prepare for the next conversation.</p><form data-foundation-contact-form novalidate><div class="foundation-contact-grid"><label><span>Full name <b>Required</b></span><input type="text" name="name" autocomplete="name" minlength="2" maxlength="120" value="' + escapeHtml(state.contact.name) + '" required></label><label><span>Business name <b>Required</b></span><input type="text" name="company" autocomplete="organization" minlength="2" maxlength="160" value="' + escapeHtml(state.contact.company) + '" required></label><label><span>Email address <b>Required</b></span><input type="email" name="email" autocomplete="email" inputmode="email" maxlength="190" value="' + escapeHtml(state.contact.email) + '" required></label><label><span>Phone number' + (requiredPhone ? ' <b>Required</b>' : ' <em>Optional</em>') + '</span><input type="tel" name="phone" autocomplete="tel" inputmode="tel" minlength="' + (requiredPhone ? '3' : '0') + '" maxlength="60" value="' + escapeHtml(state.contact.phone) + '"' + (requiredPhone ? ' required' : '') + '></label><label class="foundation-contact-full"><span>Website <em>Optional</em></span><input type="url" name="website" autocomplete="url" maxlength="500" placeholder="https://" value="' + escapeHtml(state.contact.website) + '"></label><label class="foundation-contact-full"><span>Anything else we should know? <em>Optional</em></span><textarea name="notes" rows="4" maxlength="5000" placeholder="Deadlines, access needs, context or anything that will help us understand the project.">' + escapeHtml(state.contact.notes) + '</textarea></label></div><label class="foundation-privacy-check"><input type="checkbox" name="privacy" value="1"' + (state.contact.privacy ? ' checked' : '') + ' required><span>' + escapeHtml(privacyText) + privacyLink + '</span></label><div class="foundation-honeypot" aria-hidden="true"><label>Leave this field empty<input type="text" name="foundation_honey" tabindex="-1" autocomplete="off"></label></div><div class="foundation-contact-actions"><button type="button" class="foundation-secondary-button" data-contact-back>Back to estimate</button><button type="submit" class="foundation-primary-button" data-contact-submit>Email my estimate</button></div><p class="foundation-submit-status" role="status" aria-live="polite" hidden></p></form></section>';
+		var form = getCanvas().querySelector('[data-foundation-contact-form]');
+		form.addEventListener('input', captureContactValues);
+		form.addEventListener('change', captureContactValues);
+		form.addEventListener('submit', submitContactForm);
+		form.querySelector('[data-contact-back]').addEventListener('click', goBack);
+	}
+
+	function captureContactValues() {
+		var form = getCanvas().querySelector('[data-foundation-contact-form]');
+		if (!form) return;
+		state.contact.name = String(form.elements.name.value || '').trim();
+		state.contact.company = String(form.elements.company.value || '').trim();
+		state.contact.email = String(form.elements.email.value || '').trim();
+		state.contact.phone = String(form.elements.phone.value || '').trim();
+		state.contact.website = String(form.elements.website.value || '').trim();
+		state.contact.notes = String(form.elements.notes.value || '').trim();
+		state.contact.privacy = Boolean(form.elements.privacy.checked);
+	}
+
+	function validateContactForm(form) {
+		captureContactValues();
+		Array.prototype.slice.call(form.querySelectorAll('[aria-invalid]')).forEach(function (input) { input.removeAttribute('aria-invalid'); });
+		var fields = [
+			{ name: 'name', label: 'full name', minLength: 2 },
+			{ name: 'company', label: 'business name', minLength: 2 },
+			{ name: 'email', label: 'email address', minLength: 1 }
+		];
+		if (branding.phoneRequired) fields.push({ name: 'phone', label: 'phone number', minLength: 3 });
+		for (var i = 0; i < fields.length; i += 1) {
+			var item = fields[i];
+			var input = form.elements[item.name];
+			if (!input || String(input.value || '').trim().length < item.minLength) {
+				showMessage('Please enter your ' + item.label + '.');
+				if (input) { input.setAttribute('aria-invalid', 'true'); input.focus(); }
+				return false;
+			}
+		}
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(state.contact.email)) {
+			showMessage('Please enter a valid email address.');
+			form.elements.email.setAttribute('aria-invalid', 'true');
+			form.elements.email.focus();
+			return false;
+		}
+		if (state.contact.website && !form.elements.website.checkValidity()) {
+			showMessage('Please enter the website address in a format such as https://example.com.');
+			form.elements.website.setAttribute('aria-invalid', 'true');
+			form.elements.website.focus();
+			return false;
+		}
+		if (!form.elements.privacy.checked) {
+			showMessage('Please confirm the privacy statement so we can respond to your enquiry.');
+			form.elements.privacy.setAttribute('aria-invalid', 'true');
+			form.elements.privacy.focus();
+			return false;
+		}
+		return true;
+	}
+
+	function submitContactForm(event) {
+		event.preventDefault();
+		var form = event.currentTarget;
+		if (!validateContactForm(form)) return;
+		var button = form.querySelector('[data-contact-submit]');
+		var status = form.querySelector('.foundation-submit-status');
+		button.disabled = true;
+		button.textContent = 'Sending securely…';
+		status.hidden = false;
+		status.textContent = 'Checking your estimate and sending your details.';
+
+		var body = new FormData();
+		body.append('action', 'foundation_submit_quote');
+		body.append('nonce', config.nonce || '');
+		body.append('submission_id', state.submissionId);
+		body.append('foundation_honey', form.elements.foundation_honey.value || '');
+		Object.keys(state.contact).forEach(function (key) {
+			body.append('contact[' + key + ']', key === 'privacy' ? (state.contact[key] ? '1' : '0') : String(state.contact[key] || ''));
+		});
+		appendSelections(body);
+		appendFiles(body);
+
+		fetch(config.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+			.then(function (response) { return response.json().then(function (payload) { return { response: response, payload: payload }; }); })
+			.then(function (result) {
+				if (!result.response.ok || !result.payload || !result.payload.success) {
+					var message = result.payload && result.payload.data && result.payload.data.message ? result.payload.data.message : 'We could not send your estimate. Please try again.';
+					throw new Error(message);
+				}
+				state.completed = true;
+				state.serverQuote = result.payload.data.quote || calculateQuote();
+				state.customerEmailStatus = result.payload.data.customer_email_status || 'unknown';
+				state.adminEmailStatus = result.payload.data.admin_email_status || 'unknown';
+				state.serverMessage = result.payload.data.message || '';
+				state.reference = result.payload.data.reference || '';
+				state.resumeToken = '';
+				clearResumeTokenFromUrl();
+				state.view = 'success';
+				renderCurrentView();
+				focusViewHeading();
+			})
+			.catch(function (error) {
+				button.disabled = false;
+				button.textContent = 'Email my estimate';
+				status.hidden = true;
+				showMessage(error && error.message ? error.message : 'We could not send your estimate. Please try again.');
+				trackEvent('failure', error && error.message ? error.message : 'Submission failed');
+			});
+	}
+
+	function appendSelections(body) {
+		Object.keys(state.selections).forEach(function (key) {
+			var value = state.selections[key];
+			if (Array.isArray(value)) value.forEach(function (item) { body.append('selections[' + key + '][]', String(item)); });
+			else body.append('selections[' + key + ']', String(value == null ? '' : value));
+		});
+	}
+
+	function appendFiles(body) {
+		Object.keys(state.files).forEach(function (fieldId) {
+			(state.files[fieldId] || []).forEach(function (file) { body.append('uploads[' + fieldId + '][]', file, file.name); });
+		});
+	}
+
+	function renderSuccess(quote) {
+		setProgress(false);
+		setFooter(false);
+		var primaryMessage = state.serverMessage || branding.successMessage || 'Your enquiry has been received safely.';
+		var confirmationMessage = '';
+		if (state.customerEmailStatus === 'sent') confirmationMessage = 'A copy of the estimate has been emailed to you.';
+		else if (state.customerEmailStatus === 'failed') confirmationMessage = 'Your enquiry is safely stored, but the confirmation email could not be sent. Please keep the reference below.';
+		else if (state.customerEmailStatus === 'disabled') confirmationMessage = 'Email confirmations are currently switched off. Please keep the reference below.';
+		var reference = state.reference ? '<p class="foundation-success-reference"><span>Your reference</span><strong>' + escapeHtml(state.reference) + '</strong></p>' : '';
+		var confirmation = confirmationMessage ? '<p class="foundation-success-email-note">' + escapeHtml(confirmationMessage) + '</p>' : '';
+		getCanvas().innerHTML = '<section class="foundation-success"><div class="foundation-success-mark" aria-hidden="true">✓</div><p class="foundation-kicker">Safely received</p><h1 tabindex="-1" data-foundation-view-heading>Thank you, ' + escapeHtml(state.contact.name || 'there') + '</h1><p>' + escapeHtml(primaryMessage) + '</p>' + reference + confirmation + renderQuoteTotals(quote, false) + '<button type="button" class="foundation-primary-button" data-success-close>Close calculator</button></section>';
+		getCanvas().querySelector('[data-success-close]').addEventListener('click', closeCalculator);
+	}
+
+	function setFooter(show, showBack, nextLabel) {
+		var footer = getFooter();
+		footer.hidden = !show;
+		if (!show) return;
+		getBackButton().hidden = !showBack;
+		getNextButton().textContent = nextLabel || 'Continue';
+	}
+
+	function setProgress(show, position, total, label) {
+		var wrap = overlay.querySelector('.foundation-progress-wrap');
+		wrap.hidden = !show;
+		if (!show) return;
+		var safeTotal = Math.max(1, Number(total || 1));
+		var current = Math.min(safeTotal, Math.max(1, Number(position || 0) + 1));
+		overlay.querySelector('[data-foundation-progress-label]').textContent = label || 'Project estimate';
+		overlay.querySelector('[data-foundation-progress-count]').textContent = current + ' of ' + safeTotal;
+		overlay.querySelector('[data-foundation-progress-bar]').style.width = Math.round((current / safeTotal) * 100) + '%';
+	}
+
+	function showMessage(message) {
+		var node = overlay.querySelector('.foundation-message');
+		if (!node) return;
+		node.textContent = message;
+		node.hidden = false;
+		node.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
+	}
+
+	function clearMessage() {
+		var node = overlay.querySelector('.foundation-message');
+		if (!node) return;
+		node.hidden = true;
+		node.textContent = '';
+	}
+
+	function focusViewHeading() {
+		window.setTimeout(function () {
+			var heading = getCanvas().querySelector('[data-foundation-view-heading]');
+			if (heading) heading.focus();
+		}, 10);
+	}
+
+	function prefersReducedMotion() {
+		return window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+	}
+
+	function getSelectedIndexes(fieldId) {
+		var value = state.selections[fieldId + '_options'];
+		return Array.isArray(value) ? value.map(String) : [];
+	}
+
+	function getNumericSelection(fieldId) {
+		var value = state.selections[fieldId + '_val'];
+		if (value == null) value = state.selections[fieldId];
+		return value == null ? '' : String(value);
+	}
+
+	function findField(fieldId) {
+		for (var i = 0; i < steps.length; i += 1) {
+			for (var j = 0; j < steps[i].fields.length; j += 1) if (steps[i].fields[j].id === fieldId) return steps[i].fields[j];
+		}
+		return null;
+	}
+
+	function getSelectedOptions(field) {
+		var indexes = getSelectedIndexes(field.id);
+		return (field.options || []).filter(function (option, index) { return indexes.indexOf(String(index)) !== -1; });
+	}
+
+	function computeRouteIds() {
+		var routes = new Set();
+		var changed = true;
+		var passes = 0;
+		while (changed && passes < 20) {
+			changed = false;
+			passes += 1;
+			steps.forEach(function (step) {
+				if (step.is_conditional && !routes.has(step.id)) return;
+				(step.fields || []).forEach(function (field) {
+					if (field.type === 'service_card') {
+						getSelectedOptions(field).forEach(function (option) {
+							var targets = Array.isArray(option.route_step_ids) ? option.route_step_ids : (option.route_step_id ? [option.route_step_id] : []);
+							targets.forEach(function (target) { if (target && !routes.has(target)) { routes.add(target); changed = true; } });
+						});
+					}
+					if (field.type === 'toggle' && getSelectedIndexes(field.id).indexOf('0') !== -1) {
+						(Array.isArray(field.yes_route_step_ids) ? field.yes_route_step_ids : []).forEach(function (target) { if (target && !routes.has(target)) { routes.add(target); changed = true; } });
+					}
+				});
+			});
+		}
+		return routes;
+	}
+
+	function getVisibleStepIndexes() {
+		state.routeIds = computeRouteIds();
+		var indexes = [];
+		steps.forEach(function (step, index) { if (!step.is_conditional || state.routeIds.has(step.id)) indexes.push(index); });
+		return indexes;
+	}
+
+	function getVisibleSteps() {
+		var indexes = getVisibleStepIndexes();
+		return indexes.map(function (index) { return steps[index]; });
+	}
+
+	function resolvePrice(source, keyName, literalName) {
+		keyName = keyName || 'price_key';
+		literalName = literalName || 'price';
+		var key = source && source[keyName] ? String(source[keyName]) : '';
+		if (key && Object.prototype.hasOwnProperty.call(pricingCatalog, key)) return roundMoney(pricingCatalog[key]);
+		return roundMoney(source && source[literalName] != null ? source[literalName] : 0);
+	}
+
+	function resolveUnitPrice(source) {
+		var keys = [];
+		if (source && source.unit_price_key) keys.push(source.unit_price_key);
+		if (source && source.price_per_unit_key) keys.push(source.price_per_unit_key);
+		if (source && Array.isArray(source.price_per_unit_keys)) keys = keys.concat(source.price_per_unit_keys);
+		var total = keys.reduce(function (sum, key) { return sum + (pricingCatalog[key] != null ? Number(pricingCatalog[key]) : 0); }, 0);
+		if (!total && source && source.price_per_unit != null) total = Number(source.price_per_unit);
+		return roundMoney(total);
+	}
+
+	function resolveBilling(source) {
+		var billing = source && source.billing === 'monthly' ? 'monthly' : 'one_off';
+		if (source && source.billing_from_field) {
+			var option = findSelectedOption(source.billing_from_field);
+			if (option && option.billing_override) billing = option.billing_override === 'monthly' ? 'monthly' : 'one_off';
+		}
+		return billing;
+	}
+
+	function findSelectedOption(fieldId) {
+		var field = findField(fieldId);
+		if (!field) return null;
+		var selected = getSelectedOptions(field);
+		return selected.length ? selected[0] : null;
+	}
+
+	function calculateQuote() {
+		var quote = { one_off_min: 0, one_off_max: 0, monthly_min: 0, monthly_max: 0, line_items: [], manual_items: [], currency: currency, vat_note: branding.vatNote || '' };
+		getVisibleSteps().forEach(function (step) {
+			(step.fields || []).forEach(function (field) {
+				var type = field.type || '';
+				var label = field.line_item_label || field.label || 'Service';
+				var pricingType = field.pricing_type || 'fixed';
+				var billing = resolveBilling(field);
+				var manualNote = field.manual_note || 'A tailored quote is required.';
+
+				if (type === 'calculation') {
+					if (pricingType === 'manual') { addManual(quote, label, manualNote); return; }
+					if (field.unit_source_field_id && field.quantity_source_field_id) {
+						var unitOption = findSelectedOption(field.unit_source_field_id);
+						var qtyOption = findSelectedOption(field.quantity_source_field_id);
+						if (!unitOption || !qtyOption) return;
+						if (unitOption.pricing_type === 'manual' || qtyOption.pricing_type === 'manual') {
+							addManual(quote, label, unitOption.manual_note || qtyOption.manual_note || manualNote);
+							return;
+						}
+						var unit = resolveUnitPrice(unitOption);
+						var qtyMin = Math.max(0, Number(qtyOption.quantity_min || 0));
+						var qtyMax = Math.max(qtyMin, Number(qtyOption.quantity_max != null ? qtyOption.quantity_max : qtyMin));
+						addLine(quote, label, unit * qtyMin, unit * qtyMax, billing, { unit_price: unit, quantity_min: qtyMin, quantity_max: qtyMax });
+					}
+					return;
+				}
+
+				if (type === 'service_card') {
+					getSelectedOptions(field).forEach(function (option) {
+						var optionLabel = option.line_item_label || option.label || label;
+						if (option.pricing_type === 'manual') { addManual(quote, optionLabel, option.manual_note || manualNote); return; }
+						if (option.pricing_component || field.pricing_component) return;
+						var optionBilling = option.billing === 'monthly' ? 'monthly' : billing;
+						var unit = resolveUnitPrice(option);
+						if (unit > 0 && option.quantity_min != null) {
+							var minQty = Math.max(0, Number(option.quantity_min));
+							var maxQty = Math.max(minQty, Number(option.quantity_max != null ? option.quantity_max : minQty));
+							addLine(quote, optionLabel, unit * minQty, unit * maxQty, optionBilling, { unit_price: unit, quantity_min: minQty, quantity_max: maxQty });
+						} else {
+							var price = resolvePrice(option);
+							addLine(quote, optionLabel, price, price, optionBilling);
+						}
+					});
+					return;
+				}
+
+				if (type === 'toggle') {
+					var yes = getSelectedIndexes(field.id).indexOf('0') !== -1;
+					if (!yes) return;
+					if (pricingType === 'manual' || pricingType === 'manual_when_yes') { addManual(quote, label, manualNote); return; }
+					var price = resolvePrice(field);
+					addLine(quote, label, price, price, billing);
+					return;
+				}
+
+				if (type === 'number_input' || type === 'range_slider') {
+					var raw = getNumericSelection(field.id);
+					if (raw === '' || !Number.isFinite(Number(raw))) return;
+					var minValue = Number.isFinite(Number(field.min)) ? Number(field.min) : 0;
+					var maxValue = Number.isFinite(Number(field.max)) ? Math.max(minValue, Number(field.max)) : Math.max(minValue, Number(raw));
+					var quantity = Math.min(maxValue, Math.max(minValue, Number(raw)));
+					var base = resolvePrice(field, 'base_price_key', 'base_price');
+					var perUnit = resolveUnitPrice(field);
+					addLine(quote, label, base + perUnit * quantity, base + perUnit * quantity, billing, { unit_price: perUnit, quantity_min: quantity, quantity_max: quantity, base_price: base });
+				}
+			});
+		});
+		['one_off_min', 'one_off_max', 'monthly_min', 'monthly_max'].forEach(function (key) { quote[key] = roundMoney(quote[key]); });
+		quote.has_range = quote.one_off_min !== quote.one_off_max || quote.monthly_min !== quote.monthly_max;
+		quote.manual_count = quote.manual_items.length;
+		quote.has_pricing = quote.one_off_max > 0 || quote.monthly_max > 0;
+		return quote;
+	}
+
+	function addLine(quote, label, min, max, billing, meta) {
+		min = roundMoney(Math.max(0, Number(min || 0)));
+		max = roundMoney(Math.max(min, Number(max || 0)));
+		billing = billing === 'monthly' ? 'monthly' : 'one_off';
+		if (min <= 0 && max <= 0) return;
+		quote[billing + '_min'] += min;
+		quote[billing + '_max'] += max;
+		quote.line_items.push(Object.assign({ label: String(label || 'Service'), min: min, max: max, billing: billing }, meta || {}));
+	}
+
+	function addManual(quote, label, note) {
+		var key = String(label || '').toLowerCase() + '|' + String(note || '').toLowerCase();
+		var exists = quote.manual_items.some(function (item) { return (String(item.label).toLowerCase() + '|' + String(item.note).toLowerCase()) === key; });
+		if (!exists) quote.manual_items.push({ label: String(label || 'Service'), note: String(note || 'A tailored quote is required.') });
+	}
+
+	function roundMoney(value) { return Math.round((Number(value) + Number.EPSILON) * 100) / 100; }
+	function formatMoney(value) {
+		var number = Number(value || 0);
+		return currency + number.toLocaleString(undefined, { minimumFractionDigits: number % 1 ? 2 : 0, maximumFractionDigits: 2 });
+	}
+	function formatRange(min, max) {
+		min = Number(min || 0); max = Number(max || min);
+		return min === max ? formatMoney(min) : formatMoney(min) + ' to ' + formatMoney(max);
+	}
+
+	function updateLiveSummary() {
+		var aside = overlay.querySelector('[data-foundation-live-summary]');
+		var body = overlay.querySelector('.foundation-modal-body');
+		if (!aside) return;
+		var shouldHide = !branding.showLiveSummary || state.view === 'intro' || state.view === 'success';
+		if (body) body.classList.toggle('is-summary-hidden', shouldHide);
+		if (shouldHide) {
+			aside.hidden = true;
+			aside.innerHTML = '';
+			return;
+		}
+		aside.hidden = false;
+		var quote = calculateQuote();
+		var totals = quoteMode ? '<div class="foundation-live-tailored"><strong>Tailored quote</strong><span>We will review your selections.</span></div>' : '';
+		if (!quoteMode && quote.one_off_max > 0) totals += '<div class="foundation-live-total"><span>One-off</span><strong>' + escapeHtml(formatRange(quote.one_off_min, quote.one_off_max)) + '</strong></div>';
+		if (!quoteMode && quote.monthly_max > 0) totals += '<div class="foundation-live-total"><span>Monthly</span><strong>' + escapeHtml(formatRange(quote.monthly_min, quote.monthly_max)) + '</strong></div>';
+		if (!totals) totals = '<p class="foundation-live-empty">Your estimate will appear here as you answer.</p>';
+		var list = quote.line_items.slice(-5).map(function (item) { return '<li><span>' + escapeHtml(item.label) + '</span><strong>' + escapeHtml(formatRange(item.min, item.max)) + (item.billing === 'monthly' ? '/mo' : '') + '</strong></li>'; }).join('');
+		var manual = quote.manual_items.length ? '<div class="foundation-live-manual"><strong>' + quote.manual_items.length + ' tailored item' + (quote.manual_items.length === 1 ? '' : 's') + '</strong><span>Inkfire will scope these with you.</span></div>' : '';
+		aside.innerHTML = '<div class="foundation-live-heading"><span>Live estimate</span><small>Excluding VAT</small></div>' + totals + (list ? '<ul>' + list + '</ul>' : '') + manual + '<p class="foundation-live-note">' + escapeHtml(branding.estimateDisclaimer || '') + '</p>';
+	}
+
+	function openSavePanel() {
+		if (overlay.querySelector('.foundation-save-panel')) return;
+		state.savePanelReturnFocus = document.activeElement;
+		var panel = document.createElement('div');
+		panel.className = 'foundation-save-panel';
+		panel.setAttribute('role', 'dialog');
+		panel.setAttribute('aria-modal', 'true');
+		panel.setAttribute('aria-labelledby', 'foundation-save-title');
+		panel.innerHTML = '<div class="foundation-save-dialog"><button type="button" class="foundation-save-close" data-save-close aria-label="Close save panel">×</button><p class="foundation-kicker">Pause here</p><h2 id="foundation-save-title">Save and resume later</h2><p>Enter an email address and we will send a private resume link. Uploaded files cannot be stored and will need adding again.</p><label><span>Name <em>Optional</em></span><input type="text" name="save_name" autocomplete="name" maxlength="120" value="' + escapeHtml(state.contact.name) + '"></label><label><span>Email address <b>Required</b></span><input type="email" name="save_email" autocomplete="email" inputmode="email" maxlength="190" value="' + escapeHtml(state.contact.email) + '" required></label><div class="foundation-save-actions"><button type="button" class="foundation-secondary-button" data-save-close>Cancel</button><button type="button" class="foundation-primary-button" data-save-submit>Send resume link</button></div><p class="foundation-save-status" role="status" aria-live="polite" hidden></p></div>';
+		var modal = overlay.querySelector('.foundation-modal');
+		if (modal) {
+			modal.setAttribute('aria-hidden', 'true');
+			if ('inert' in modal) modal.inert = true;
+		}
+		overlay.appendChild(panel);
+		panel.querySelectorAll('[data-save-close]').forEach(function (button) { button.addEventListener('click', closeSavePanel); });
+		panel.querySelector('[data-save-submit]').addEventListener('click', function () { saveDraft(panel); });
+		panel.querySelector('input[name="save_email"]').focus();
+	}
+
+	function closeSavePanel() {
+		var panel = overlay.querySelector('.foundation-save-panel');
+		if (panel) panel.remove();
+		var modal = overlay.querySelector('.foundation-modal');
+		if (modal) {
+			modal.removeAttribute('aria-hidden');
+			if ('inert' in modal) modal.inert = false;
+		}
+		if (state.savePanelReturnFocus && typeof state.savePanelReturnFocus.focus === 'function') state.savePanelReturnFocus.focus();
+	}
+
+	function saveDraft(panel) {
+		var emailInput = panel.querySelector('input[name="save_email"]');
+		var nameInput = panel.querySelector('input[name="save_name"]');
+		var status = panel.querySelector('.foundation-save-status');
+		var button = panel.querySelector('[data-save-submit]');
+		var email = String(emailInput.value || '').trim();
+		if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+			status.hidden = false; status.textContent = 'Enter a valid email address.'; emailInput.focus(); return;
+		}
+		state.contact.email = email;
+		state.contact.name = String(nameInput.value || '').trim();
+		button.disabled = true; button.textContent = 'Sending…'; status.hidden = false; status.textContent = 'Saving your answers.';
+		var body = new FormData();
+		body.append('action', 'foundation_save_quote_draft');
+		body.append('nonce', config.nonce || '');
+		body.append('token', state.resumeToken || '');
+		body.append('current_step', String(state.currentStepIndex));
+		body.append('resume_base', config.resume && config.resume.baseUrl ? config.resume.baseUrl : window.location.href.split('?')[0]);
+		body.append('send_email', '1');
+		Object.keys(state.contact).forEach(function (key) { body.append('contact[' + key + ']', key === 'privacy' ? (state.contact[key] ? '1' : '0') : String(state.contact[key] || '')); });
+		appendSelections(body);
+		fetch(config.ajaxUrl, { method: 'POST', credentials: 'same-origin', body: body })
+			.then(function (response) { return response.json().then(function (payload) { return { response: response, payload: payload }; }); })
+			.then(function (result) {
+				if (!result.response.ok || !result.payload || !result.payload.success) throw new Error(result.payload && result.payload.data && result.payload.data.message ? result.payload.data.message : 'We could not save your progress.');
+				state.resumeToken = result.payload.data.token || state.resumeToken;
+				button.hidden = true;
+				status.textContent = result.payload.data.email_sent ? 'Your resume link has been emailed.' : 'Your answers were saved, but the email could not be sent. Please try again.';
+			})
+			.catch(function (error) { button.disabled = false; button.textContent = 'Send resume link'; status.textContent = error.message || 'We could not save your progress.'; });
+	}
+
+	function getResumeTokenFromUrl() {
+		try { return new URLSearchParams(window.location.search).get((config.resume && config.resume.queryParam) || 'foundation_resume') || ''; }
+		catch (error) { return ''; }
+	}
+
+	function clearResumeTokenFromUrl() {
+		if (!window.history || typeof window.history.replaceState !== 'function') return;
+		try {
+			var url = new URL(window.location.href);
+			var key = (config.resume && config.resume.queryParam) || 'foundation_resume';
+			if (!url.searchParams.has(key)) return;
+			url.searchParams.delete(key);
+			window.history.replaceState(window.history.state, document.title, url.pathname + (url.search || '') + (url.hash || ''));
+		} catch (error) {}
+	}
+
+	function restoreDraft(token) {
+		var body = new URLSearchParams();
+		body.set('action', 'foundation_resume_quote_draft');
+		body.set('nonce', config.nonce || '');
+		body.set('token', token);
+		fetch(config.ajaxUrl, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: body.toString() })
+			.then(function (response) { return response.json(); })
+			.then(function (payload) {
+				if (!payload || !payload.success || !payload.data) throw new Error('This saved estimate has expired.');
+				state.resumeToken = token;
+				clearResumeTokenFromUrl();
+				state.selections = payload.data.selections && typeof payload.data.selections === 'object' ? payload.data.selections : {};
+				state.contact = Object.assign(state.contact, payload.data.contact || {});
+				state.started = true;
+				state.routeIds = computeRouteIds();
+				var requested = parseInt(payload.data.current_step, 10);
+				var visible = getVisibleStepIndexes();
+				state.currentStepIndex = visible.indexOf(requested) !== -1 ? requested : (visible.length ? visible[0] : -1);
+				state.view = state.currentStepIndex >= 0 ? 'step' : 'review';
+				openCalculator();
+			})
+			.catch(function (error) {
+				openCalculator();
+				showMessage(error.message || 'This saved estimate could not be restored.');
+			});
+	}
+
+	function trackEvent(eventName, message) {
+		if (!config.ajaxUrl || !config.nonce) return;
+		var body = new URLSearchParams();
+		body.set('action', 'foundation_track_quote_event');
+		body.set('nonce', config.nonce);
+		body.set('event', eventName);
+		if (message) body.set('message', String(message).slice(0, 300));
+		fetch(config.ajaxUrl, { method: 'POST', credentials: 'same-origin', keepalive: true, headers: { 'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8' }, body: body.toString() }).catch(function () {});
+	}
+
+	function trackViewOnce() {
+		var key = 'foundation_project_calculator_view_' + (config.blueprintVersion || config.version || '1');
+		try {
+			if (window.sessionStorage && !window.sessionStorage.getItem(key)) { window.sessionStorage.setItem(key, '1'); trackEvent('view'); }
+		} catch (error) { trackEvent('view'); }
+	}
+}());

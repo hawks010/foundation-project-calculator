@@ -1,13 +1,60 @@
 <?php
 /**
- * Fired when the plugin is deleted.
+ * Remove calculator data when an administrator deletes the plugin.
  */
 
 if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
-delete_option( 'foundation_form_data' );
-delete_option( 'foundation_form_settings' );
+wp_clear_scheduled_hook( 'foundation_cleanup_old_submissions' );
 
-delete_option( 'foundation_form_metrics' );
+foreach (
+	array(
+		'foundation_form_data',
+		'foundation_form_settings',
+		'foundation_form_metrics',
+		'foundation_pricing_catalog',
+		'foundation_form_data_backup',
+		'foundation_blueprint_version',
+		'foundation_blueprint_applied_at',
+		'foundation_db_version',
+	)
+	as $option_name
+) {
+	delete_option( $option_name );
+}
+
+// The enquiry post type is deliberately hidden, so remove it in bounded batches
+// without relying on the post type being registered during uninstall.
+global $wpdb;
+do {
+	$post_ids = $wpdb->get_col(
+		$wpdb->prepare(
+			"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID ASC LIMIT 500",
+			'foundation_quote'
+		)
+	);
+	foreach ( $post_ids as $post_id ) {
+		wp_delete_post( (int) $post_id, true );
+	}
+} while ( count( $post_ids ) === 500 );
+
+// Clear expiring drafts, rate-limit buckets, idempotency caches and stale locks.
+$option_prefixes = array(
+	'_transient_foundation_quote_draft_',
+	'_transient_timeout_foundation_quote_draft_',
+	'_transient_foundation_submission_',
+	'_transient_timeout_foundation_submission_',
+	'_transient_fpc_rl_',
+	'_transient_timeout_fpc_rl_',
+	'foundation_submission_lock_',
+);
+foreach ( $option_prefixes as $prefix ) {
+	$wpdb->query(
+		$wpdb->prepare(
+			"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s",
+			$wpdb->esc_like( $prefix ) . '%'
+		)
+	);
+}
