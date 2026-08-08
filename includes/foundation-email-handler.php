@@ -29,11 +29,17 @@ function foundation_limit_text( $value, $length ) {
  */
 function foundation_get_request_ip() {
 	$candidates = array();
-	if ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
-		$candidates[] = wp_unslash( $_SERVER['REMOTE_ADDR'] );
-	}
+
+	/* On the Cloudflare-proxied Inkfire site REMOTE_ADDR can be an edge address,
+	 * which would make unrelated visitors share one abuse bucket. Prefer the
+	 * connecting visitor address only when Cloudflare's request marker is also
+	 * present, then fall back to the web-server peer address. The final value is
+	 * still filterable for hosts that expose a different trusted proxy header. */
 	if ( ! empty( $_SERVER['HTTP_CF_RAY'] ) && ! empty( $_SERVER['HTTP_CF_CONNECTING_IP'] ) ) {
 		$candidates[] = wp_unslash( $_SERVER['HTTP_CF_CONNECTING_IP'] );
+	}
+	if ( ! empty( $_SERVER['REMOTE_ADDR'] ) ) {
+		$candidates[] = wp_unslash( $_SERVER['REMOTE_ADDR'] );
 	}
 
 	foreach ( $candidates as $candidate ) {
@@ -68,31 +74,121 @@ function foundation_rate_limit_allow( $bucket, $limit, $window, $identity = '' )
 	return true;
 }
 
+function foundation_turnstile_is_configured( $settings ) {
+	return ! empty( $settings['turnstile_enabled'] ) && ! empty( $settings['turnstile_site_key'] ) && ! empty( $settings['turnstile_secret_key'] );
+}
+
+function foundation_verify_turnstile( $settings, $expected_action = '' ) {
+	if ( ! foundation_turnstile_is_configured( $settings ) ) {
+		return true;
+	}
+
+	$token = foundation_limit_text( sanitize_text_field( wp_unslash( $_POST['turnstile_token'] ?? '' ) ), 2048 );
+	if ( '' === $token ) {
+		return new WP_Error( 'foundation_turnstile_missing', 'Please complete the security check and try again.', array( 'status' => 422 ) );
+	}
+
+	$body = array(
+		'secret'   => (string) $settings['turnstile_secret_key'],
+		'response' => $token,
+	);
+	$ip = foundation_get_request_ip();
+	if ( 'unknown' !== $ip ) {
+		$body['remoteip'] = $ip;
+	}
+	$response = wp_remote_post(
+		'https://challenges.cloudflare.com/turnstile/v0/siteverify',
+		array( 'timeout' => 8, 'body' => $body )
+	);
+	if ( is_wp_error( $response ) ) {
+		return new WP_Error( 'foundation_turnstile_unavailable', 'The security check is temporarily unavailable. Please try again.', array( 'status' => 503 ) );
+	}
+	$status = (int) wp_remote_retrieve_response_code( $response );
+	$data   = json_decode( (string) wp_remote_retrieve_body( $response ), true );
+	if ( $status < 200 || $status >= 300 || ! is_array( $data ) || empty( $data['success'] ) ) {
+		return new WP_Error( 'foundation_turnstile_failed', 'The security check could not be confirmed. Please try again.', array( 'status' => 422 ) );
+	}
+
+	if ( '' !== $expected_action && ( empty( $data['action'] ) || ! hash_equals( (string) $expected_action, (string) $data['action'] ) ) ) {
+		return new WP_Error( 'foundation_turnstile_action', 'The security check could not be confirmed. Please try again.', array( 'status' => 422 ) );
+	}
+	$expected_host = strtolower( (string) wp_parse_url( home_url( '/' ), PHP_URL_HOST ) );
+	$verified_host = strtolower( (string) ( $data['hostname'] ?? '' ) );
+	if ( '' !== $expected_host && ( '' === $verified_host || ! hash_equals( $expected_host, $verified_host ) ) ) {
+		/* Cloudflare's official testing hostname is allowed only with its published test sitekey. */
+		$is_test_key = '1x00000000000000000000AA' === (string) $settings['turnstile_site_key'];
+		if ( ! $is_test_key ) {
+			return new WP_Error( 'foundation_turnstile_hostname', 'The security check could not be confirmed. Please try again.', array( 'status' => 422 ) );
+		}
+	}
+	return true;
+}
+
+function foundation_public_request_looks_too_fast( $settings ) {
+	$minimum = max( 0, min( 30, absint( $settings['minimum_interaction_seconds'] ?? 2 ) ) );
+	if ( $minimum < 1 ) {
+		return false;
+	}
+
+	/* Prefer an elapsed duration calculated in the browser. Unlike comparing
+	 * two wall clocks, this cannot false-positive merely because the visitor's
+	 * device clock differs from the web server. Retain the old timestamp as a
+	 * backwards-compatible fallback for older cached frontends. */
+	$elapsed_ms = isset( $_POST['interaction_elapsed_ms'] ) ? (float) wp_unslash( $_POST['interaction_elapsed_ms'] ) : -1;
+	if ( $elapsed_ms >= 0 ) {
+		return $elapsed_ms < ( $minimum * 1000 );
+	}
+
+	$started = isset( $_POST['interaction_started'] ) ? (float) wp_unslash( $_POST['interaction_started'] ) : 0;
+	if ( $started <= 0 ) {
+		return false;
+	}
+	$elapsed = ( microtime( true ) * 1000 ) - $started;
+	return $elapsed >= 0 && $elapsed < ( $minimum * 1000 );
+}
+
 function foundation_track_quote_event() {
 	check_ajax_referer( 'foundation_nonce', 'nonce' );
-	if ( ! foundation_rate_limit_allow( 'metric', 150, HOUR_IN_SECONDS ) ) {
+	if ( ! foundation_rate_limit_allow( 'metric', 300, HOUR_IN_SECONDS ) ) {
 		wp_send_json_success( array( 'tracked' => false ) );
 	}
 
 	$event = sanitize_key( wp_unslash( $_POST['event'] ?? '' ) );
 	$map   = array(
-		'view'       => 'form_views',
-		'start'      => 'form_starts',
-		'incomplete' => 'incomplete',
-		'failure'    => 'failures',
+		'view'               => 'form_views',
+		'start'              => 'form_starts',
+		'early_capture_view' => 'early_capture_views',
+		'email_capture'      => 'email_captures',
+		'email_verified'     => 'email_verified',
+		'first_estimate'     => 'first_estimates',
+		'route_complete'     => 'route_completions',
+		'review'             => 'review_reached',
+		'resume'             => 'resumes',
+		'incomplete'         => 'incomplete',
+		'close'              => 'calculator_closes',
+		'back'               => 'back_clicks',
+		'validation'         => 'validation_errors',
+		'not_sure'           => 'not_sure_choices',
 	);
-	if ( empty( $map[ $event ] ) ) {
-		wp_send_json_success( array( 'tracked' => false ) );
+	if ( isset( $map[ $event ] ) ) {
+		foundation_increment_metric( $map[ $event ] );
 	}
 
-	foundation_increment_metric( $map[ $event ] );
+	$screen_id = substr( sanitize_key( wp_unslash( $_POST['screen_id'] ?? '' ) ), 0, 100 );
+	$screen_events = array( 'screen_view' => 'views', 'screen_complete' => 'completions', 'screen_back' => 'backs', 'screen_validation' => 'validation_errors' );
+	if ( isset( $screen_events[ $event ] ) && '' !== $screen_id ) {
+		foundation_increment_screen_metric( $screen_id, $screen_events[ $event ] );
+	}
+
 	if ( 'failure' === $event ) {
 		$message = foundation_limit_text( sanitize_text_field( wp_unslash( $_POST['message'] ?? '' ) ), 300 );
 		if ( '' !== $message ) {
-			foundation_set_metric_meta( 'last_failure', $message );
+			foundation_record_failure( $message );
 		}
 	}
-	wp_send_json_success( array( 'tracked' => true ) );
+
+	$tracked = isset( $map[ $event ] ) || isset( $screen_events[ $event ] ) || 'failure' === $event;
+	wp_send_json_success( array( 'tracked' => $tracked ) );
 }
 
 function foundation_generate_resume_token() {
@@ -185,7 +281,8 @@ function foundation_sanitize_contact( $raw_contact, $settings, $draft = false ) 
 		'phone'   => foundation_limit_text( sanitize_text_field( $raw_contact['phone'] ?? '' ), 60 ),
 		'website' => foundation_limit_text( esc_url_raw( $raw_contact['website'] ?? '' ), 500 ),
 		'notes'   => foundation_limit_text( sanitize_textarea_field( $raw_contact['notes'] ?? '' ), 5000 ),
-		'privacy' => foundation_normalize_bool( $raw_contact['privacy'] ?? false ),
+		'privacy'   => foundation_normalize_bool( $raw_contact['privacy'] ?? false ),
+		'marketing' => ! empty( $settings['marketing_opt_in_enabled'] ) && foundation_normalize_bool( $raw_contact['marketing'] ?? false ),
 	);
 
 	if ( $draft ) {
@@ -195,9 +292,6 @@ function foundation_sanitize_contact( $raw_contact, $settings, $draft = false ) 
 	$missing = array();
 	if ( strlen( $contact['name'] ) < 2 ) {
 		$missing[] = 'your full name';
-	}
-	if ( strlen( $contact['company'] ) < 2 ) {
-		$missing[] = 'your business or organisation name';
 	}
 	if ( ! is_email( $contact['email'] ) ) {
 		$missing[] = 'a valid email address';
@@ -226,24 +320,46 @@ function foundation_save_quote_draft() {
 	$raw_contact    = isset( $_POST['contact'] ) ? wp_unslash( $_POST['contact'] ) : array();
 	$raw_selections = isset( $_POST['selections'] ) ? wp_unslash( $_POST['selections'] ) : array();
 	$current_step   = intval( $_POST['current_step'] ?? -1 );
+	$progress       = absint( $_POST['progress'] ?? 0 );
 	$resume_base    = foundation_normalize_resume_base_url( esc_url_raw( wp_unslash( $_POST['resume_base'] ?? home_url( '/' ) ) ) );
 	$send_email     = ! empty( $_POST['send_email'] ) && '1' === (string) wp_unslash( $_POST['send_email'] );
 	$contact        = foundation_sanitize_contact( $raw_contact, $settings, true );
 	$selections     = foundation_sanitize_submission_selections( $raw_selections );
 
-	// Saving a draft writes to the database even when no email is requested. Bound
-	// every public save so automated requests cannot create unlimited transients.
-	if ( ! foundation_rate_limit_allow( 'draft_save_ip', 30, HOUR_IN_SECONDS ) ) {
+	$honeypot = sanitize_text_field( wp_unslash( $_POST['foundation_honey'] ?? '' ) );
+	if ( '' !== $honeypot ) {
+		wp_send_json_success( array( 'token' => '', 'resume_url' => '', 'email_sent' => true, 'spam_trapped' => true ) );
+	}
+
+	$save_limit = max( 5, min( 200, absint( $settings['draft_save_ip_limit_hour'] ?? 40 ) ) );
+	if ( ! foundation_rate_limit_allow( 'draft_save_ip', $save_limit, HOUR_IN_SECONDS ) ) {
 		wp_send_json_error( array( 'message' => 'Too many estimates were saved from this connection. Please wait before trying again.' ), 429 );
 	}
 
+	$existing_brief = foundation_is_valid_resume_token( $token ) ? Foundation_Submissions::find_brief_by_token( $token ) : 0;
 	if ( $send_email ) {
+		if ( strlen( $contact['name'] ) < 2 ) {
+			wp_send_json_error( array( 'message' => 'Please enter your name before saving your project brief.' ), 422 );
+		}
 		if ( ! is_email( $contact['email'] ) ) {
 			wp_send_json_error( array( 'message' => 'Please enter a valid email address before sending a resume link.' ), 422 );
 		}
+		if ( foundation_public_request_looks_too_fast( $settings ) ) {
+			wp_send_json_error( array( 'message' => 'Please wait a moment and try again.' ), 429 );
+		}
+		$turnstile = foundation_verify_turnstile( $settings, 'magic_link' );
+		if ( is_wp_error( $turnstile ) ) {
+			$status = (array) $turnstile->get_error_data();
+			wp_send_json_error( array( 'message' => $turnstile->get_error_message() ), absint( $status['status'] ?? 422 ) );
+		}
 		$email_identity = hash_hmac( 'sha256', strtolower( $contact['email'] ), wp_salt( 'auth' ) );
-		if ( ! foundation_rate_limit_allow( 'draft_email', 4, HOUR_IN_SECONDS, $email_identity ) || ! foundation_rate_limit_allow( 'draft_ip', 12, HOUR_IN_SECONDS ) ) {
-			wp_send_json_error( array( 'message' => 'Too many resume links were requested. Please wait before trying again.' ), 429 );
+		$email_limit    = max( 1, min( 20, absint( $settings['magic_link_email_limit_hour'] ?? 5 ) ) );
+		$ip_limit       = max( 1, min( 50, absint( $settings['magic_link_ip_limit_hour'] ?? 10 ) ) );
+		$resend_window  = max( 30, min( 900, absint( $settings['magic_link_resend_seconds'] ?? 60 ) ) );
+		if ( ! foundation_rate_limit_allow( 'draft_email_resend', 1, $resend_window, $email_identity . '|' . foundation_get_request_ip() )
+			|| ! foundation_rate_limit_allow( 'draft_email', $email_limit, HOUR_IN_SECONDS, $email_identity )
+			|| ! foundation_rate_limit_allow( 'draft_ip', $ip_limit, HOUR_IN_SECONDS ) ) {
+			wp_send_json_error( array( 'message' => 'A resume link was sent recently. Please wait before requesting another.' ), 429 );
 		}
 	}
 
@@ -257,32 +373,41 @@ function foundation_save_quote_draft() {
 		'current_step' => max( -1, min( 200, $current_step ) ),
 		'updated_at'   => current_time( 'mysql' ),
 	);
-	$retention = max( 1, min( 90, absint( $settings['draft_retention_days'] ?? 14 ) ) ) * DAY_IN_SECONDS;
+	$retention = max( 1, min( 90, absint( $settings['draft_retention_days'] ?? 30 ) ) ) * DAY_IN_SECONDS;
 	set_transient( foundation_get_draft_transient_key( $token ), $payload, $retention );
-	foundation_increment_metric( 'saved_drafts' );
-	if ( ! empty( $contact['email'] ) ) {
-		// Metrics remain anonymous. The draft itself contains the address and expires.
-		foundation_set_metric_meta( 'last_saved_draft', current_time( 'M j, Y g:i a' ) );
+	if ( $send_email ) {
+		foundation_increment_metric( 'saved_drafts' );
+		if ( ! empty( $contact['email'] ) ) {
+			foundation_set_metric_meta( 'last_saved_draft', current_time( 'M j, Y g:i a' ) );
+		}
+	}
+
+	$steps = foundation_normalize_form_data( get_option( 'foundation_form_data', array() ) );
+	$quote = ! empty( $steps ) ? foundation_calculate_quote( $steps, $selections ) : array();
+	/* Only a human-checked email capture can create a new stored brief. Later autosaves may update that existing brief without repeatedly challenging the customer. */
+	if ( is_email( $contact['email'] ) && ( $send_email || $existing_brief ) ) {
+		$brief_id = Foundation_Submissions::upsert_brief( $token, $contact, $selections, $current_step, $quote, $progress, ! empty( $contact['marketing'] ) );
+		if ( is_wp_error( $brief_id ) ) {
+			wp_send_json_error( array( 'message' => 'Your project brief could not be stored safely. Please try again.' ), 500 );
+		}
+		update_post_meta( $brief_id, '_foundation_brief_transient_key', foundation_get_draft_transient_key( $token ) );
+		if ( $send_email && ! $existing_brief ) {
+			foundation_increment_metric( 'email_captures' );
+		}
 	}
 
 	$resume_url = foundation_get_resume_url( $token, $resume_base );
 	$email_sent = false;
 	if ( $send_email ) {
 		$headers = foundation_build_mail_headers( $settings );
-		$body    = '<p>Hi ' . esc_html( $contact['name'] ? $contact['name'] : 'there' ) . ',</p>';
-		$body   .= '<p>You can resume your saved Inkfire project estimate using the private link below:</p>';
-		$body   .= '<p><a href="' . esc_url( $resume_url ) . '">' . esc_html( $resume_url ) . '</a></p>';
-		$body   .= '<p>The link expires in ' . esc_html( max( 1, absint( $settings['draft_retention_days'] ?? 14 ) ) ) . ' days. Uploaded files are not stored and will need to be added again.</p>';
-		$email_sent = wp_mail( $contact['email'], 'Resume your Inkfire project estimate', $body, $headers );
+		$body  = '<p>Hi ' . esc_html( $contact['name'] ) . ',</p>';
+		$body .= '<p>Your Inkfire Project Brief is saved. Use the private button below to continue exactly where you left off.</p>';
+		$body .= '<p><a href="' . esc_url( $resume_url ) . '" style="display:inline-block;background:#075e53;color:#fff;border-radius:999px;padding:13px 22px;text-decoration:none;font-weight:bold;">Continue my project brief</a></p>';
+		$body .= '<p style="color:#5e6475;font-size:13px;">This private link expires in ' . esc_html( max( 1, absint( $settings['draft_retention_days'] ?? 30 ) ) ) . ' days. Uploaded files are not stored and must be added again.</p>';
+		$email_sent = wp_mail( $contact['email'], 'Your Inkfire Project Brief is saved', $body, $headers );
 	}
 
-	wp_send_json_success(
-		array(
-			'token'      => $token,
-			'resume_url' => $resume_url,
-			'email_sent' => (bool) $email_sent,
-		)
-	);
+	wp_send_json_success( array( 'token' => $token, 'resume_url' => $resume_url, 'email_sent' => (bool) $email_sent, 'brief_saved' => is_email( $contact['email'] ) && ( $send_email || $existing_brief ) ) );
 }
 
 function foundation_resume_quote_draft() {
@@ -290,6 +415,9 @@ function foundation_resume_quote_draft() {
 	$token = sanitize_text_field( wp_unslash( $_REQUEST['token'] ?? '' ) );
 	if ( ! foundation_is_valid_resume_token( $token ) ) {
 		wp_send_json_error( array( 'message' => 'This saved estimate link is not valid.' ), 404 );
+	}
+	if ( Foundation_Submissions::is_resume_token_revoked( $token ) ) {
+		wp_send_json_error( array( 'message' => 'This saved estimate link has been replaced or revoked.' ), 404 );
 	}
 	if ( ! foundation_rate_limit_allow( 'draft_resume', 60, HOUR_IN_SECONDS ) ) {
 		wp_send_json_error( array( 'message' => 'Too many saved estimates were requested. Please wait and try again.' ), 429 );
@@ -310,6 +438,10 @@ function foundation_resume_quote_draft() {
 		wp_send_json_error( array( 'message' => 'This saved estimate has expired or could not be found.' ), 404 );
 	}
 	unset( $payload['token'] );
+	if ( Foundation_Submissions::mark_brief_verified( $token ) ) {
+		foundation_increment_metric( 'email_verified' );
+	}
+	foundation_increment_metric( 'resumes' );
 	wp_send_json_success( $payload );
 }
 
@@ -434,6 +566,15 @@ function foundation_process_quote() {
 		);
 	}
 
+	if ( foundation_public_request_looks_too_fast( $settings ) ) {
+		wp_send_json_error( array( 'message' => 'Please wait a moment and try again.' ), 429 );
+	}
+	$turnstile = foundation_verify_turnstile( $settings, 'final_submit' );
+	if ( is_wp_error( $turnstile ) ) {
+		$status = (array) $turnstile->get_error_data();
+		wp_send_json_error( array( 'message' => $turnstile->get_error_message() ), absint( $status['status'] ?? 422 ) );
+	}
+
 	$submission_id = sanitize_text_field( wp_unslash( $_POST['submission_id'] ?? '' ) );
 	if ( ! Foundation_Submissions::is_valid_token( $submission_id ) ) {
 		wp_send_json_error( array( 'message' => 'Your calculator session is invalid. Please reload the page and try again.' ), 400 );
@@ -447,23 +588,21 @@ function foundation_process_quote() {
 	$raw_contact = isset( $_POST['contact'] ) ? wp_unslash( $_POST['contact'] ) : array();
 	$contact     = foundation_sanitize_contact( $raw_contact, $settings, false );
 	if ( is_wp_error( $contact ) ) {
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', $contact->get_error_message() );
+		foundation_record_failure( $contact->get_error_message() );
 		wp_send_json_error( array( 'message' => $contact->get_error_message() ), 422 );
 	}
 
 	$email_identity = hash_hmac( 'sha256', strtolower( $contact['email'] ), wp_salt( 'auth' ) );
 	$cooldown       = max( 5, min( 600, absint( $settings['submission_cooldown_seconds'] ?? 30 ) ) );
 	if ( ! foundation_rate_limit_allow( 'submit_cooldown', 1, $cooldown, $email_identity . '|' . foundation_get_request_ip() )
-		|| ! foundation_rate_limit_allow( 'submit_ip_hour', 8, HOUR_IN_SECONDS )
-		|| ! foundation_rate_limit_allow( 'submit_email_hour', 5, HOUR_IN_SECONDS, $email_identity ) ) {
+		|| ! foundation_rate_limit_allow( 'submit_ip_hour', max( 1, min( 50, absint( $settings['submit_ip_limit_hour'] ?? 8 ) ) ), HOUR_IN_SECONDS )
+		|| ! foundation_rate_limit_allow( 'submit_email_hour', max( 1, min( 20, absint( $settings['submit_email_limit_hour'] ?? 5 ) ) ), HOUR_IN_SECONDS, $email_identity ) ) {
 		wp_send_json_error( array( 'message' => 'Too many enquiries were submitted in a short period. Please wait before trying again.' ), 429 );
 	}
 
 	$steps = foundation_normalize_form_data( get_option( 'foundation_form_data', array() ) );
 	if ( empty( $steps ) || ( 1 === count( $steps ) && empty( $steps[0]['fields'] ) ) ) {
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', 'Calculator configuration missing.' );
+		foundation_record_failure( 'Calculator configuration missing.' );
 		wp_send_json_error( array( 'message' => 'The calculator is temporarily unavailable. Please contact Inkfire directly.' ), 503 );
 	}
 
@@ -472,24 +611,21 @@ function foundation_process_quote() {
 	$uploads        = foundation_collect_uploaded_files( $settings, $steps, $selections );
 	if ( ! empty( $uploads['errors'] ) ) {
 		$message = implode( ' ', $uploads['errors'] );
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', $message );
+		foundation_record_failure( $message );
 		wp_send_json_error( array( 'message' => $message ), 422 );
 	}
 
 	$missing = foundation_validate_required_submission_fields( $steps, $selections, $uploads['files'] );
 	if ( ! empty( $missing ) ) {
 		$message = 'Please complete: ' . implode( ', ', $missing ) . '.';
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', $message );
+		foundation_record_failure( $message );
 		wp_send_json_error( array( 'message' => $message ), 422 );
 	}
 
 	$value_errors = foundation_validate_submission_values( $steps, $selections );
 	if ( ! empty( $value_errors ) ) {
 		$message = implode( ' ', $value_errors );
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', $message );
+		foundation_record_failure( $message );
 		wp_send_json_error( array( 'message' => $message ), 422 );
 	}
 
@@ -532,13 +668,16 @@ function foundation_process_quote() {
 	$stored = Foundation_Submissions::create( $contact, $selections, $summary, $quote, $submission_id, $attachment_names );
 	Foundation_Submissions::release_submission_lock( $submission_id );
 	if ( is_wp_error( $stored ) ) {
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', 'Local enquiry storage failed.' );
+		foundation_record_failure( 'Local enquiry storage failed.' );
 		wp_send_json_error( array( 'message' => 'Your enquiry could not be stored safely. Please contact Inkfire directly.' ), 500 );
 	}
 
 	$post_id   = (int) $stored['id'];
 	$reference = (string) $stored['reference'];
+	$resume_token = sanitize_text_field( wp_unslash( $_POST['resume_token'] ?? '' ) );
+	if ( foundation_is_valid_resume_token( $resume_token ) ) {
+		Foundation_Submissions::mark_brief_converted( $resume_token, $post_id );
+	}
 
 	$pdf_path  = ! empty( $settings['attach_pdf_summary'] ) ? foundation_generate_pdf_attachment( $contact, $summary, $quote, $settings, $reference ) : '';
 	$json_path = ! empty( $settings['attach_json_summary'] ) ? foundation_generate_json_attachment( $contact, $summary, $quote, $settings, $flat_attachments, $reference ) : '';
@@ -550,7 +689,8 @@ function foundation_process_quote() {
 		? sanitize_email( $settings['admin_email'] )
 		: foundation_get_default_notification_email();
 	$subject_prefix   = foundation_limit_text( sanitize_text_field( $settings['admin_subject_prefix'] ?? '' ), 120 );
-	$subject_admin    = ( $subject_prefix ? $subject_prefix : 'New project calculator enquiry' ) . ': ' . $contact['company'] . ' [' . $reference . ']';
+	$subject_name     = '' !== trim( (string) $contact['company'] ) ? $contact['company'] : $contact['name'];
+	$subject_admin    = ( $subject_prefix ? $subject_prefix : 'New project calculator enquiry' ) . ': ' . $subject_name . ' [' . $reference . ']';
 	$admin_headers    = foundation_build_mail_headers( $settings, $contact['email'], $contact['name'] );
 	if ( ! empty( $settings['cc_emails'] ) ) {
 		$admin_headers[] = 'Cc: ' . $settings['cc_emails'];
@@ -589,9 +729,11 @@ function foundation_process_quote() {
 	Foundation_Submissions::update_mail_status( $post_id, $admin_status, $customer_status );
 	foundation_cleanup_temp_files( array( $pdf_path, $json_path, $zip_path ) );
 	foundation_increment_metric( 'responses_saved' );
+	foundation_record_success();
 	if ( ! $admin_sent ) {
-		foundation_increment_metric( 'failures' );
-		foundation_set_metric_meta( 'last_failure', 'Admin notification email failed for ' . $reference . '; enquiry stored locally.' );
+		foundation_record_failure( 'Admin notification email failed for ' . $reference . '; enquiry stored locally.' );
+	} elseif ( ! empty( $settings['customer_confirmation_enabled'] ) && 'failed' === $customer_status ) {
+		foundation_record_failure( 'Customer confirmation email failed for ' . $reference . '; enquiry stored locally.' );
 	}
 
 	wp_send_json_success( foundation_quote_response_payload( Foundation_Submissions::get_record( $post_id ), false ) );

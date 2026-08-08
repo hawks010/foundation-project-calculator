@@ -59,16 +59,29 @@ class Foundation_Frontend {
 			$loader_printed = true;
 			$loader_config = $this->get_lazy_loader_config();
 			?>
-			<script>
+			<script data-cfasync="false">
 			(function () {
 				'use strict';
 				if (window.FoundationProjectCalculatorLazy) return;
 				var config = <?php echo wp_json_encode( $loader_config, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT ); ?>;
 				var loading = null;
 
+				function getOverlay() {
+					var overlay = document.getElementById('foundation-app-overlay');
+					/*
+					 * Elementor and some themes place shortcode output inside a stacking
+					 * context or an overflow-clipped footer. A fixed child cannot escape
+					 * that ancestor, regardless of its own z-index. Keep the application
+					 * overlay as a direct body child so it is painted at viewport level.
+					 */
+					if (overlay && document.body && overlay.parentNode !== document.body) {
+						document.body.appendChild(overlay);
+					}
+					return overlay;
+				}
 				function matchesTrigger(target) {
 					if (!target || !target.closest) return null;
-					return target.closest('[data-foundation-calculator-open], .foundation-trigger, a[href*="foundation-form"], a[href*="get-quote"]');
+					return target.closest('[data-foundation-calculator-open], .foundation-trigger, .foundation-launch-btn, a[href*="foundation-form"], a[href*="get-quote"], a[href*="#foundation-launch-btn"]');
 				}
 				function loadCss() {
 					if (document.getElementById('foundation-frontend-css-lazy') || document.getElementById('foundation-frontend-css-css') || document.querySelector('link[href*="/foundation-frontend.css"]')) return;
@@ -83,6 +96,7 @@ class Foundation_Frontend {
 						if (document.getElementById('foundation-frontend-js-lazy')) { resolve(); return; }
 						var script = document.createElement('script');
 						script.id = 'foundation-frontend-js-lazy';
+						script.setAttribute('data-cfasync', 'false');
 						script.src = config.jsUrl;
 						script.defer = true;
 						script.onload = resolve;
@@ -111,6 +125,7 @@ class Foundation_Frontend {
 					});
 				}
 				function load(openAfterLoad) {
+					getOverlay();
 					if (openAfterLoad) window.foundationAutoOpen = true;
 					if (!loading) {
 						loadCss();
@@ -124,7 +139,7 @@ class Foundation_Frontend {
 					});
 				}
 				function showLoadError(error) {
-					var overlay = document.getElementById('foundation-app-overlay');
+					var overlay = getOverlay();
 					if (!overlay) return;
 					var card = document.createElement('div');
 					var heading = document.createElement('strong');
@@ -145,6 +160,7 @@ class Foundation_Frontend {
 					overlay.hidden = false;
 					overlay.className = 'foundation-overlay is-active';
 				}
+				getOverlay();
 				document.addEventListener('click', function (event) {
 					var trigger = matchesTrigger(event.target);
 					if (!trigger) return;
@@ -153,7 +169,11 @@ class Foundation_Frontend {
 				}, true);
 				window.FoundationProjectCalculatorLazy = { load: load };
 				try {
-					if (new URLSearchParams(window.location.search).has(config.resumeQueryParam || 'foundation_resume')) load(true).catch(showLoadError);
+					/*
+					 * The calculator script owns the resume lifecycle. Opening here would race
+					 * the asynchronous restore request and leave the introduction on screen.
+					 */
+					if (new URLSearchParams(window.location.search).has(config.resumeQueryParam || 'foundation_resume')) load(false).catch(showLoadError);
 				} catch (error) {}
 			}());
 			</script>
@@ -205,6 +225,7 @@ class Foundation_Frontend {
 				'introHeading'           => $settings['intro_heading'],
 				'introText'              => $settings['intro_text'],
 				'testimonialImageUrl'    => $settings['testimonial_image_url'],
+				'successImageUrl'        => $settings['success_image_url'],
 				'testimonialHeading'     => $settings['testimonial_heading'],
 				'testimonialQuote'       => $settings['testimonial_quote'],
 				'testimonialAttribution' => $settings['testimonial_attribution'],
@@ -221,6 +242,19 @@ class Foundation_Frontend {
 				'maxFileSizeMb'    => intval( $settings['max_file_size_mb'] ),
 				'maxTotalSizeMb'   => intval( $settings['max_total_upload_mb'] ),
 				'maxFilesPerField' => intval( $settings['max_files_per_field'] ),
+			),
+			'retention' => array(
+				'localDays' => intval( $settings['anonymous_local_retention_days'] ?? 14 ),
+			),
+			'leadCapture' => array(
+				'enabled'           => ! empty( $settings['early_capture_enabled'] ),
+				'marketingEnabled'  => ! empty( $settings['marketing_opt_in_enabled'] ),
+				'marketingLabel'    => (string) ( $settings['marketing_opt_in_label'] ?? '' ),
+			),
+			'spam' => array(
+				'turnstileEnabled' => ! empty( $settings['turnstile_enabled'] ) && ! empty( $settings['turnstile_site_key'] ) && ! empty( $settings['turnstile_secret_key'] ),
+				'turnstileSiteKey' => ! empty( $settings['turnstile_enabled'] ) ? (string) $settings['turnstile_site_key'] : '',
+				'minimumInteractionSeconds' => intval( $settings['minimum_interaction_seconds'] ?? 2 ),
 			),
 		);
 	}

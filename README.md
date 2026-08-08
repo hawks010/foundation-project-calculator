@@ -1,143 +1,195 @@
 # Foundation Project Calculator
 
-**Version 1.4.0**
+**Version 1.6.1**
 **Repository:** https://github.com/Inkfire-limited/foundation-project-calculator
 
-A guided WordPress project calculator for Inkfire. It turns the August 2026 pricing board into a maintainable customer journey with separate one-off and monthly totals, clear tailored-quote outcomes, secure lead capture, and a deliberately simple administration screen.
+Foundation Project Calculator is Inkfire's guided WordPress project-estimate system. It combines the August 2026 Web, Tech and Business pricing blueprint with a low-maintenance visual journey editor, server-authoritative estimates, resumable project briefs and a private lead/enquiry inbox.
 
-## What changed in 1.4
+## 1.6.1 admin-management scope
 
-Version 1.4 removes the fragile visual flow builder from everyday use. The customer journey is now a tested, read-only blueprint, while the things staff actually need to change are separated into plain controls:
+Version 1.6.1 is a narrow administration and journey-media release on top of the 1.6.0 retention/customer experience. Public pricing and journey data remain authoritative and the database schema is unchanged.
 
-- **Overview:** health checks, anonymous journey metrics, and migration status.
-- **Enquiries:** a private local inbox for completed estimates and email-delivery status.
-- **Prices:** 38 clearly labelled prices, grouped by Web, Tech, and Business services.
-- **Customer journey:** a read-only map of the questions and routes.
-- **Emails & branding:** recipients, sender identity, customer copy, VAT wording, logo, and privacy link.
-- **Advanced:** quote-only mode, attachment controls, retention, rate limits, export, and metrics reset.
+### Managed lead inbox
 
-The public calculator supports all three Inkfire routes in one estimate:
+- Workflow labels: New, In progress, Follow up, Waiting, Complete and Archived.
+- Inline status changes save by protected AJAX.
+- Unfinished briefs expose View, Follow up and Resend link actions.
+- Detail views allow staff to correct customer name/email, resend a magic link and permanently delete a record.
+- Email correction invalidates the previous private return link and marks the corrected address unverified until the fresh link is used.
+- Archived records can be cleared deliberately as a separate destructive action.
 
-1. Web & Accessibility
-2. Tech & Support
-3. Business Support & Marketing
+### Journey editor polish
 
-Customers can select one or several routes. Exact prices, ranges, monthly charges, and services requiring discovery are kept distinct.
+- Expanded cards have an explicit **Minimise card** control and the Edit button becomes Minimise while open.
+- Opening, Contact and Success nodes expose inline image controls backed by the standard WordPress Media Library.
+- Image selection/removal saves by AJAX without reloading the Journey page.
+- An optional Success image is supported independently of the existing opening and contact/testimonial images.
+- Removing an opening/contact image does not leave an empty half-panel on the public calculator.
+
+## 1.6.0 release scope
+
+Version 1.6.0 is a retention, lead-capture, anti-spam and premium-customer-experience release built on the guarded 1.5.0 journey editor.
+
+### Premium public journey
+
+- Reworks the opening into an Inkfire project-brief experience: **Brief → Plan → Quote**.
+- Keeps the original Inkfire split-image personality on desktop and preserves a compact branded image hero on smaller screens instead of dropping the human visual.
+- Uses a dark glass default and a WCAG-aware light mode with a green-glass/white-text primary treatment.
+- Shows meaningful within-route progress rather than an unreliable global percentage.
+- Keeps the right-side live estimate on desktop and uses a sticky expandable estimate pill on mobile.
+- Rewards useful progress with subtle price feedback and a dedicated route-completion screen.
+- Provides contextual help and human-readable validation without dead-ending tailored/discovery services.
+
+### Retention and resume
+
+- Offers an optional early **name + email** capture immediately after the intro, with an unmistakable **Continue without saving** path.
+- Creates a private magic-link draft when the visitor chooses to save, then lets them continue immediately without forcing inbox verification.
+- Marks an email as verified only after the private resume link is actually used.
+- Autosaves anonymous journey state locally without putting contact PII into `localStorage`.
+- Offers **Continue where I left off** on return and a recoverable leave panel instead of silently discarding work.
+- Reuses captured name/email at final submission instead of making customers enter the same details again.
+- Stores unfinished email-linked briefs in a private WordPress post type with progress, current quote, verification state and marketing-consent state.
+
+### Spam and abuse protection
+
+- Optional Cloudflare Turnstile integration for magic-link sends and final submissions.
+- Server-side Siteverify validation checks success, expected action and expected hostname; the secret key never enters public configuration or exports.
+- Honeypot handling, WordPress nonces, per-IP/per-email throttles, resend cooldowns, minimum-interaction checks, strict same-origin resume URLs and existing idempotency/duplicate locks remain layered underneath.
+- Magic-link tokens are stored as hashes in unfinished-brief records.
+- Turnstile is intentionally disabled until real site/secret keys are configured. The other protections remain active when it is off.
+
+### Admin intelligence
+
+- Overview now includes a first-party project-brief funnel: opened, started, email captured, email verified, price reached, review reached and submitted.
+- Per-screen metrics surface validation friction without recording free-text customer answers in analytics.
+- Enquiries now includes unfinished project briefs alongside completed submissions.
+- Advanced exposes retention and abuse thresholds plus Turnstile configuration.
+- Legacy un-timestamped `last_failure` values no longer masquerade as current errors. New failures record time/version and a later successful submission clears the active alert.
+
+### Journey editor retained
+
+The 1.5.0 Visual Journey Editor remains intentionally structured rather than becoming a freeform page builder:
+
+- per-card AJAX save;
+- + Add and Duplicate;
+- pointer drag plus keyboard Move up/Move down;
+- safe unconnected drafts;
+- plain-English connections to earlier choices;
+- one-step Undo;
+- pricing/formulas kept outside the mini builder.
+
+## Current Inkfire blueprint
+
+The bundled Inkfire 2026 blueprint contains:
+
+- 28 journey screens;
+- 49 fields;
+- 38 editable prices;
+- 27 connected route targets;
+- Web & Accessibility, Tech & Support, and Business Support & Marketing routes that can be combined in one estimate.
+
+Exact prices, ranges, monthly charges and discovery/tailored outcomes remain distinct. Existing real journeys are not silently replaced during upgrade.
+
+## Administration
+
+- **Overview:** health, funnel, screen friction, blueprint state and operational diagnostics.
+- **Enquiries:** unfinished email-linked briefs plus completed private enquiries.
+- **Prices:** the monetary source of truth.
+- **Customer journey:** guarded visual mini builder.
+- **Emails & branding:** recipients, sender identity, public wording, images, privacy and customer confirmation.
+- **Advanced:** quote mode, attachments, retention, abuse controls, Turnstile, export and metrics reset.
 
 ## Requirements
 
-- WordPress 6.4 or later
-- PHP 7.4 or later
-- HTTPS recommended
-- A verified SMTP configuration strongly recommended
-- `ZipArchive` optional. PDF and JSON reports still work without it.
+- WordPress 6.4+
+- PHP 7.4+
+- HTTPS strongly recommended
+- Verified SMTP strongly recommended
+- `ZipArchive` optional; PDF and JSON reports work without it
+- Cloudflare Turnstile optional but recommended on the public production calculator once real keys are configured
 
-## Installation
+## Installation / upgrade
 
-1. Back up the WordPress database and the current plugin folder.
-2. Upload the `foundation-project-calculator` folder to `/wp-content/plugins/`.
-3. Activate **Foundation Project Calculator**.
-4. Open **Foundation > Project Calculator**.
-5. Complete every item in the ready-state checklist.
-6. Configure the notification and sender addresses under **Emails & branding**.
-7. Place `[foundation_form]` on the calculator page.
-8. Run a complete test submission on staging before production activation.
+1. Back up the database and current plugin folder.
+2. Install the approved production ZIP into the existing `foundation-project-calculator` plugin folder.
+3. Confirm WordPress reports **1.6.1**.
+4. Do **not** reapply Mali's blueprint just because the plugin version changed.
+5. Confirm the stored journey/prices/email settings survived intact.
+6. Configure the privacy-policy URL and verified SMTP sender.
+7. Configure Turnstile site/secret keys under **Advanced** before enabling Turnstile.
+8. Purge NitroPack, WordPress object cache and host LiteSpeed cache.
+9. Run the live gates in `DEPLOYMENT_NOTES.md`.
 
-### Upgrading an existing installation
-
-A fresh or empty installation receives the Inkfire 2026 journey automatically. A real existing journey is never overwritten silently.
-
-After upgrading, the Overview screen may show **Apply Mali’s Inkfire pricing journey**. Select **Back up and apply journey**. The previous flow is stored as a restorable backup; prices and email settings are preserved.
+`FOUNDATION_DB_VERSION` remains **1.4.0**. Version 1.6.1 does not require a schema migration.
 
 ## Shortcode and triggers
-
-Standard button and calculator:
 
 ```text
 [foundation_form]
 ```
 
-Custom button label:
+Custom label:
 
 ```text
 [foundation_form label="Plan my project"]
 ```
 
-Load the calculator without rendering the default button:
+Hide the built-in trigger while retaining the calculator mount:
 
 ```text
 [foundation_form button="false"]
 ```
 
-A custom link or button can open the calculator by using either:
+Supported external triggers include `.foundation-trigger`, `data-foundation-calculator-open`, links containing `get-quote` / `foundation-form`, and the live Inkfire `href="#foundation-launch-btn"` CTA.
 
-- the class `.foundation-trigger`
-- the attribute `data-foundation-calculator-open`
-- a link whose URL contains `get-quote` or `foundation-form`
+The critical inline/dynamic loader opts out of Cloudflare Rocket Loader and the overlay is reparented directly under `body` before display.
 
-Keep the shortcode on the page even when using an external trigger because it prints the calculator mount and lazy loader.
+## Data, privacy and lead safety
 
-## Pricing behaviour
+- Anonymous browser recovery stores selections/current journey position only, not name/email/contact data.
+- Email-linked drafts are private WordPress records and use hashed magic-link tokens.
+- Email verification means the visitor used the private resume link; it is not required before continuing the calculator.
+- Optional marketing permission is a separate unchecked control and is not treated as permission merely because someone requested a save/resume link.
+- Completed enquiries are stored locally before mail delivery is attempted.
+- WordPress personal-data exporter/eraser support covers completed enquiries and saved project briefs.
+- Retention periods are configurable and cleanup is scheduled.
 
-The browser shows an immediate estimate for usability, but it is not trusted for submission. The server validates the visible route, required answers, option indexes, number bounds, uploads, and contact data, then recalculates the estimate using the live pricing catalogue.
+## Security model
 
-The result can contain:
+The browser estimate is for UX only. Final totals are recalculated from the live server-side price catalogue. The server validates visible routes, required values, option indexes, numeric bounds, uploads and contact data.
 
-- an exact one-off total
-- a one-off range
-- an exact monthly total
-- a monthly range
-- one or more tailored-quote items
+Public mutations are protected by nonce checks plus abuse controls. Turnstile, when enabled, is validated server-side and checks the expected action/hostname. The Turnstile secret is admin-only, omitted from configuration export and never emitted into frontend configuration.
 
-All bundled prices are excluding VAT. The VAT note and estimate disclaimer are editable.
+## Accessibility
 
-See `MALI_PRICING_MAPPING.md` for the complete source mapping and every interpretation made where the board did not define a safe formula.
+The public interface is built and regression-tested around WCAG 2.2 AA-relevant behaviour:
 
-## Lead reliability and privacy
+- named modal/dialog semantics;
+- native grouped choice controls;
+- keyboard-operable selection and focus trap/return;
+- textual error identification, association and focus movement;
+- large primary pointer targets;
+- persistent help once a question journey begins;
+- no redundant name/email entry after early capture;
+- 320 CSS px reflow;
+- light/dark contrast checks;
+- reduced-motion, forced-colour and increased-contrast handling;
+- a recoverable close/leave experience.
 
-Completed enquiries are written to a private WordPress post type before email is attempted. An SMTP outage therefore leaves the lead available under **Foundation > Project Calculator > Enquiries**.
-
-Other safeguards include:
-
-- nonce validation on public mutations
-- IP and email-based rate limiting
-- honeypot spam handling
-- idempotency tokens and a database-backed duplicate-submission lock
-- same-origin saved-estimate links
-- strict field and route validation
-- executable and browser-active upload deny-list
-- bounded file count and file size
-- private, non-public enquiry storage
-- configurable automatic enquiry retention
-- WordPress personal-data exporter and eraser support
-- configuration exports that omit recipient and sender addresses
-
-The bundled Inkfire journey does not currently ask customers to upload files. Upload support remains available for a future approved journey.
+Automated evidence is not a substitute for a final live keyboard and screen-reader acceptance pass.
 
 ## Development and testing
 
-The shipped admin and customer interfaces use plain, versioned PHP, CSS, and JavaScript. There is no production asset compilation step.
+There is no production build step. PHP, CSS and JavaScript are shipped directly.
 
-Run the deterministic suite from the plugin root:
+Run everything:
 
 ```bash
 bash tests/run.sh
 ```
 
-Run the Chromium customer-journey smoke test separately:
-
-```bash
-bash tests/test-browser-smoke.sh
-```
-
-Reports are written to:
-
-- `tests/TEST_RESULTS.md`
-- `tests/STATIC_QA_RESULTS.md`
-- `tests/BROWSER_SMOKE_RESULTS.md`
+The suite covers deterministic pricing/data/security behaviour, static/syntax checks, complete Chromium flow, Elementor paint-order regressions, private resume, WCAG-focused browser behaviour, retention/lead-capture behaviour and the admin journey editor.
 
 ## Release status
 
-Version 1.4.0 is a **production candidate**. Local unit, security, syntax, and browser-journey checks pass. Final approval still requires installation on the real staging WordPress site, a live SMTP test, and conflict checks with the active theme, caching layer, security plugins, and the host’s PHP configuration.
-
-See `DEPLOYMENT_NOTES.md` and `PRODUCTION_READINESS_REPORT.md` before release.
+Version 1.6.1 is packaged as a **production-ready release candidate**. Local/source-package checks must pass before the artifact is shipped. Live production acceptance still requires real Cloudflare/Turnstile, SMTP, caching and browser/screen-reader gates described in `DEPLOYMENT_NOTES.md`.

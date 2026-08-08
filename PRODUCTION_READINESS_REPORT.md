@@ -1,120 +1,102 @@
-# Production Readiness Report
+# Foundation Project Calculator 1.6.1 Production Readiness Report
 
-**Product:** Foundation Project Calculator
-**Candidate:** 1.4.0
-**Assessment date:** 5 August 2026
-**Status:** Production candidate, pending real staging approval
+**Candidate:** 1.6.1
+**Date:** 7 August 2026
+**Local status:** **production-ready release candidate**, pending controlled live Inkfire acceptance.
 
-## Executive assessment
+## Scope
 
-The uploaded 1.3.x package has been reworked into a maintainable Inkfire calculator based on Mali's August 2026 board. The risky administration problem has been addressed by separating the stable route blueprint from everyday price and settings changes. The customer estimate is recalculated on the server, completed leads are stored before email, and the main abuse and data-handling paths have explicit controls.
+1.6.1 keeps the 1.6.0 customer-retention system and 1.5 Visual Journey Editor architecture, then closes the main day-to-day admin usability gaps.
 
-The package is suitable for staging deployment. It should not be described as conclusively production-ready until the real WordPress, SMTP, theme, cache, firewall, and host checks pass.
+### Enquiries / lead operations
 
-## Scope completed
+Administrators can now:
 
-### Pricing and flow
+- assign **New, In progress, Follow up, Waiting, Complete or Archived** workflow states;
+- update workflow state inline by AJAX;
+- open a lead and correct customer name/email;
+- follow up using a pre-addressed email action;
+- resend a private magic link for unfinished briefs;
+- permanently delete an individual controlled record;
+- clear only records deliberately marked **Archived**;
+- see captured/verified email state and current progress/estimate data.
 
-- Three main routes with multi-selection.
-- Twenty-eight screens and forty-nine fields.
-- Thirty-eight editable price keys.
-- Twenty-seven connected route targets.
-- Exact, range, one-off, monthly, and manual-review outcomes.
-- Conservative handling of every undefined source amount.
-- Contact capture after the estimate review.
+### Journey authoring
 
-### Administration
+Administrators can now:
 
-- Server-rendered dashboard with no production compilation requirement.
-- Searchable price editor.
-- Read-only journey map.
-- Safe migration callout for old/custom flows.
-- Automatic backup before blueprint application.
-- One-step journey restore.
-- Blueprint content fingerprint, not only version checking.
-- Private enquiry inbox and email statuses.
-- Operational, retention, export, and metrics controls.
+- minimise an expanded card again without reloading;
+- change the **Opening image**, **Contact image** and **Closing/Success image** from the native WordPress Media Library;
+- remove those images without deleting the media item;
+- save image choices immediately by protected AJAX.
 
-### Reliability
+The existing Add, Duplicate, drag, keyboard reorder, per-card editor, Undo and route guard rails remain.
 
-- Local lead write before team email.
-- Human-readable reference.
-- Idempotent submission token.
-- Atomic short-lived duplicate lock using a unique WordPress option.
-- Email failure reported without telling the customer their lead was lost.
-- Bounded cleanup cron.
-- Configuration export without recipient or sender addresses.
+## Low-maintenance design decisions
 
-### Security and privacy
+- No new SPA/admin framework was introduced.
+- Lead workflow uses the existing private WordPress records and metadata.
+- Media selections remain ordinary URL settings selected through `wp.media()` rather than creating a second media subsystem.
+- Bulk clear is intentionally limited to Archived records.
+- Customer-facing pricing/formulas remain separate from admin journey presentation controls.
+- Database schema remains **1.4.0**.
 
-- Nonces on all four public state-changing AJAX handlers.
-- `manage_options` permission on every registered REST route.
-- Server-authoritative pricing.
-- Visible-route required-field validation.
-- Option-index, single-choice, numeric-bound, and off-route validation.
-- Sanitised contact, answer, setting, and pricing data.
-- Honeypot and several bounded rate limits.
-- Same-origin resume URL enforcement with exact scheme, host, and port.
-- HMAC-hashed draft and submission storage keys.
-- Upload MIME/extension checks, PHP upload checks, and blocked active formats.
-- Private, non-queryable, non-REST enquiry post type.
-- Automatic data retention and WordPress privacy callbacks.
-- Anonymous metrics without customer email addresses.
+## Security and integrity boundaries
 
-## Automated evidence
+- Lead-management AJAX endpoints require `manage_options` and the existing protected dashboard nonce.
+- Journey-media AJAX uses an explicit three-key allow-list and URL sanitisation.
+- Correcting an unfinished brief email immediately invalidates the previous verification state and revokes the previous magic link.
+- When an administrator resends a magic link, the old link remains usable if mail sending fails; it is revoked only after the replacement message is accepted for sending.
+- Public quote totals remain server-authoritative.
+- Existing Turnstile, honeypot, throttling, same-origin resume, token hashing, submission locking/idempotency and upload protections remain in force.
+- Completed enquiries continue to be stored before notification email is attempted.
 
-| Area | Result |
-|---|---:|
-| Deterministic PHP tests | 40 passed, 0 failed |
-| Static and security checks | 15 passed, 0 failed |
-| Chromium customer-journey smoke | Passed |
-| PHP syntax | Passed under PHP 8.4.16 |
-| JavaScript syntax | Passed under Node 22.16.0 |
-| CSS structural check | Passed |
-| Git whitespace check | Passed |
+## Customer frontend containment
 
-The Chromium test exercised the real public CSS and JavaScript through:
+1.6.1 does not intentionally redesign the 1.6 customer journey. The existing premium Inkfire frontend, Brief → Plan → Quote structure, responsive image treatment, live estimate, retention system, Rocket Loader exclusion and Elementor body-level overlay handling remain.
 
-- Web & Accessibility
-- small website
-- five pages
-- WooCommerce
-- hosting plus plugins
-- 26–50 alt texts
-- accessibility testing
-- accessibility setup
-- contact submission and success receipt
-- post-completion save-control hiding and clean restart
+A small customer-facing addition permits an independent Success/Closing image. Removing an Opening, Contact or Success image collapses the visual panel instead of leaving a blank split layout.
 
-It verified £4,260 one-off plus £45/month, excluding VAT.
+## Accessibility position
 
-## Manual review completed locally
+The existing WCAG 2.2 AA-focused customer suite still passes, including modal semantics, keyboard operation, focus handling, validation association, contrast checks, 320 CSS px reflow and reduced-motion/forced-colour safeguards.
 
-- Admin handlers use capability and nonce checks.
-- Output escaping was checked across the dashboard and email templates.
-- Public configuration excludes team addresses and server secrets.
-- Submitted browser totals are not accepted.
-- Enquiry storage precedes `wp_mail()`.
-- Temporary reports are cleaned after mail attempts.
-- Existing non-empty journeys are not overwritten on activation.
-- Price updates through the protected REST route merge with the live catalogue rather than resetting omitted values.
-- The updater points to the Inkfire Limited repository and boots at the correct lifecycle point.
-- Uninstall clears plugin options, private enquiries, drafts, rate-limit transients, idempotency caches, and stale locks.
+The admin Journey Editor retains keyboard Move up/down controls in addition to pointer drag. Media selection is available through the standard WordPress Media Library and card minimisation has explicit buttons.
 
-## Remaining release gates
+This is strong automated evidence, not formal accessibility certification; production keyboard/screen-reader acceptance remains a release gate.
 
-| Gate | Why it remains |
-|---|---|
-| Real staging activation | No complete WordPress runtime or database driver was available locally |
-| Live SMTP test | Mail acceptance and inbox delivery depend on the configured provider and verified sender |
-| Active-theme and plugin conflict test | The production stack was not present in the local container |
-| Cache/CDN test | Stale HTML or aggressive optimisation can affect the lazy loader |
-| Firewall/security-plugin test | Public `admin-ajax.php` behaviour is environment-specific |
-| PHP 7.4 runtime test | Only PHP 8.4 was installed locally; compatibility was checked statically |
-| `ZipArchive` execution | The local PHP build did not include the extension; fallback behaviour is implemented |
-| Cross-browser sign-off | Chromium was automated; Safari, Firefox, and Edge need staging checks |
-| Real accessibility audit | Keyboard/focus behaviours are implemented, but formal assistive-technology testing remains |
+## Data and migration safety
 
-## Release recommendation
+- `FOUNDATION_DB_VERSION`: **1.4.0**
+- no 1.6.1 schema migration;
+- no required blueprint reapplication;
+- no intended price reset;
+- no intended email-setting reset;
+- no intended deletion of current project briefs or enquiries.
 
-Deploy 1.4.0 to the real staging site using `DEPLOYMENT_NOTES.md`. Approve production only after a successful exact-price journey, range journey, tailored journey, multi-route journey, save/resume cycle, local inbox record, live team email, live customer email, duplicate test, mobile check, and cache purge test.
+## Local verification status
+
+- Deterministic suite: **67/67 PASS**
+- Static/security suite: **24/24 PASS**
+- Journey Editor browser suite: **16/16 PASS**
+- Lead-management browser suite: **7/7 PASS**
+- Full customer smoke: **PASS**
+- Mobile/desktop launch regressions: **PASS**
+- Private resume regression: **PASS**
+- Retention browser suite: **PASS**
+- WCAG 2.2 AA-focused browser suite: **PASS**
+
+## Live acceptance required
+
+The real Inkfire environment must still prove:
+
+- Cloudflare/Rocket Loader immediate first click;
+- NitroPack/object/LiteSpeed cache freshness;
+- live SMTP delivery and magic-link rotation;
+- old-link rejection after an email correction;
+- WordPress Media Library image selection and removal;
+- workflow/archive/delete operations on controlled QA records;
+- final submission attachments and duplicate protection;
+- current browser and assistive-technology behaviour.
+
+Until those gates pass, the correct release label is **production-ready release candidate**, not live production accepted.

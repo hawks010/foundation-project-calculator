@@ -1001,9 +1001,10 @@ function foundation_apply_inkfire_blueprint( $make_backup = true ) {
 	$current = get_option( 'foundation_form_data', array() );
 	if ( $make_backup && is_array( $current ) && ! empty( $current ) ) {
 		$backup = array(
-			'created_at' => current_time( 'mysql' ),
-			'version'    => get_option( 'foundation_blueprint_version', '' ),
-			'form_data'  => $current,
+			'created_at'        => current_time( 'mysql' ),
+			'version'           => get_option( 'foundation_blueprint_version', '' ),
+			'form_data'         => $current,
+			'builder_customized'=> (bool) get_option( 'foundation_journey_builder_customized', false ),
 		);
 		update_option( 'foundation_form_data_backup', $backup, false );
 	}
@@ -1012,6 +1013,9 @@ function foundation_apply_inkfire_blueprint( $make_backup = true ) {
 	update_option( 'foundation_form_data', $blueprint, false );
 	update_option( 'foundation_blueprint_version', foundation_get_blueprint_version(), false );
 	update_option( 'foundation_blueprint_applied_at', current_time( 'mysql' ), false );
+	delete_option( 'foundation_journey_builder_customized' );
+	delete_option( 'foundation_journey_builder_revision' );
+	delete_option( 'foundation_journey_builder_updated_at' );
 
 	return array(
 		'steps'   => count( $blueprint ),
@@ -1442,6 +1446,32 @@ function foundation_get_blueprint_health() {
 		}
 	}
 
+	$step_order = array();
+	foreach ( $steps as $order_index => $step ) {
+		$step_order[ isset( $step['id'] ) ? $step['id'] : '' ] = $order_index;
+	}
+	foreach ( $steps as $source_index => $step ) {
+		foreach ( (array) ( isset( $step['fields'] ) ? $step['fields'] : array() ) as $field ) {
+			$route_targets = array();
+			foreach ( (array) ( isset( $field['yes_route_step_ids'] ) ? $field['yes_route_step_ids'] : array() ) as $route ) {
+				$route_targets[] = sanitize_key( $route );
+			}
+			foreach ( (array) ( isset( $field['options'] ) ? $field['options'] : array() ) as $option ) {
+				foreach ( (array) ( isset( $option['route_step_ids'] ) ? $option['route_step_ids'] : array() ) as $route ) {
+					$route_targets[] = sanitize_key( $route );
+				}
+				if ( empty( $option['route_step_ids'] ) && ! empty( $option['route_step_id'] ) ) {
+					$route_targets[] = sanitize_key( $option['route_step_id'] );
+				}
+			}
+			foreach ( array_unique( array_filter( $route_targets ) ) as $route ) {
+				if ( isset( $step_order[ $route ] ) && $step_order[ $route ] <= $source_index ) {
+					$issues[] = 'Route target must appear after its source: ' . $route;
+				}
+			}
+		}
+	}
+
 	foreach ( array_unique( array_filter( $price_keys ) ) as $key ) {
 		if ( ! array_key_exists( $key, $catalog ) ) {
 			$issues[] = 'Missing price key: ' . $key;
@@ -1453,10 +1483,25 @@ function foundation_get_blueprint_health() {
 		}
 	}
 
-	$structural_issues = array_values( array_unique( $issues ) );
-	$blueprint_current = foundation_is_inkfire_blueprint_installed();
+	$structural_issues  = array_values( array_unique( $issues ) );
+	$blueprint_exact    = foundation_is_inkfire_blueprint_installed();
+	$version_is_current = foundation_get_blueprint_version() === (string) get_option( 'foundation_blueprint_version', '' );
+	$builder_customized = ! $blueprint_exact
+		&& $version_is_current
+		&& empty( $structural_issues )
+		&& (bool) get_option( 'foundation_journey_builder_customized', false );
+	$blueprint_current  = $blueprint_exact || $builder_customized;
+
 	if ( ! $blueprint_current ) {
-		$issues[] = 'The live journey is custom or legacy. Apply the bundled Inkfire pricing journey before launch.';
+		$issues[] = 'The live journey is custom or legacy outside the supported Journey Editor. Reapply the bundled Inkfire pricing journey before launch.';
+	}
+
+	$incoming_target_ids = array_values( array_unique( array_filter( $route_ids ) ) );
+	$draft_step_ids      = array();
+	foreach ( $steps as $step ) {
+		if ( ! empty( $step['is_conditional'] ) && ! in_array( $step['id'], $incoming_target_ids, true ) ) {
+			$draft_step_ids[] = $step['id'];
+		}
 	}
 
 	return array(
@@ -1464,6 +1509,10 @@ function foundation_get_blueprint_health() {
 		'structure_ok'      => empty( $structural_issues ),
 		'structure_issues'  => $structural_issues,
 		'blueprint_current' => $blueprint_current,
+		'blueprint_exact'   => $blueprint_exact,
+		'builder_customized'=> $builder_customized,
+		'draft_step_ids'    => $draft_step_ids,
+		'draft_step_count'  => count( $draft_step_ids ),
 		'issues'            => array_values( array_unique( $issues ) ),
 		'step_count'        => count( $steps ),
 		'field_count'       => count( $field_ids ),

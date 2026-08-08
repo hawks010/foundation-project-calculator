@@ -2,7 +2,7 @@
 
 **Source:** `canvas_flow-chart-for-price-calculator-260805_1904.pdf`, dated 5 August 2026.
 **Blueprint version:** `2026.08.05`
-**Plugin version:** `1.4.0`
+**Plugin version:** `1.6.1`
 
 This document records what was taken directly from the board and what required a conservative implementation decision. Undefined prices are never guessed.
 

@@ -1,234 +1,241 @@
-# Foundation Project Calculator 1.4 Admin Guide
+# Foundation Project Calculator 1.6.1 Admin Guide
 
-This guide is for Inkfire staff who need to manage prices, enquiries, emails, and customer-facing wording without touching the calculator's route logic.
+## 1. Where to manage it
 
-## 1. First login after installation or upgrade
+Open **WordPress Admin → Foundation → Project Calculator**.
 
-Open **WordPress Admin > Foundation > Project Calculator**.
+The calculator is split into six everyday areas so staff do not need the old complex builder:
 
-The Overview tab shows a ready-state checklist. Resolve each warning before launch.
-
-### Fresh installation
-
-The bundled Inkfire 2026 pricing journey is installed automatically when no real calculator flow exists.
-
-### Existing installation
-
-An existing non-empty journey is preserved. The Overview tab will show a pink migration panel titled **Apply Mali’s Inkfire pricing journey**.
-
-Select **Back up and apply journey**. This action:
-
-- stores the current journey as a rollback copy
-- installs the tested Web, Tech, and Business routes
-- leaves existing price values intact
-- leaves email and branding settings intact
-
-The journey fingerprint will show a warning whenever the live flow differs from the bundled version, even if a version label was left behind.
+1. **Overview**
+2. **Enquiries**
+3. **Prices**
+4. **Customer journey**
+5. **Emails & branding**
+6. **Advanced**
 
 ## 2. Overview
 
-The Overview tab contains:
+The top cards show calculator views, journeys started, unfinished email-linked project briefs and stored completed enquiries.
 
-- calculator views
-- journeys started
-- stored enquiries
-- saved drafts
-- completion percentage from recorded starts
-- blueprint status
-- route and price-key integrity
-- local inbox status
-- notification email status
-- privacy-link status
-- ZIP support status
-- the most recent recorded operational failure
+### Project brief funnel
 
-The counters are anonymous. They do not contain customer email addresses.
+The retention funnel shows first-party counts for:
 
-A green checklist does not prove SMTP delivery. A real submission is still required on staging.
+- Opened
+- Started
+- Email captured
+- Email verified
+- Price reached
+- Review reached
+- Submitted
+
+These are aggregate calculator events. Per-screen statistics are also used to highlight the questions with the most validation friction. They are not intended to be an analytics copy of customer free-text answers.
+
+### Latest unresolved failure
+
+New failures store a time and plugin version. A later successful submission clears the active failure alert while preserving the historical failure counter.
+
+Old un-timestamped `last_failure` values from legacy versions are treated as historical, which prevents stale messages such as old required-field lists from looking current after an upgrade.
 
 ## 3. Enquiries
 
-Open **Enquiries** to see completed customer estimates.
+The screen now has views for **All**, **Unfinished briefs**, and **Completed**.
 
-Each row shows:
+### Unfinished project briefs
 
-- reference
-- contact and business
-- one-off and monthly estimate
-- tailored-quote count
-- team email status
-- customer email status
-- date received
+A brief appears after a visitor voluntarily supplies a name/email and requests a private return link.
 
-Open an enquiry to see the stored contact details, calculated line items, tailored items, customer answers, and any attachment names.
+The row/detail view can show:
 
-The enquiry is stored before email is attempted. A failed team email therefore does not remove the lead. The email status will show **Failed**, and the Overview tab records the latest delivery failure.
+- name/email;
+- captured vs verified email state;
+- progress percentage;
+- current one-off/monthly estimate;
+- last activity;
+- separate marketing-consent state.
 
-The inbox stores contact and estimate data as a private, non-public WordPress post. It does not duplicate uploaded files. The current Inkfire journey contains no upload question.
+**Email captured** means a save link was requested. **Verified email** means the customer later used that private link. A customer does not have to verify before continuing the calculator.
+
+When the same saved brief becomes a completed enquiry, the unfinished record is marked converted and drops out of the normal unfinished queue.
+
+### Completed enquiries
+
+Completed enquiries remain private WordPress records and are written before email delivery is attempted. The detail view contains customer data, answers, quote totals, generated reference and mail status.
+
+### Lead workflow and actions
+
+Each unfinished brief or completed enquiry has an internal workflow label: **New, In progress, Follow up, Waiting, Complete, Archived**. Changing the label saves immediately by AJAX.
+
+Useful lead actions include:
+
+- **Follow up**: opens a pre-addressed email in the administrator's mail client.
+- **Resend link**: unfinished briefs receive a freshly rotated private resume link.
+- **Change customer details**: open the lead and correct its name/email. If a brief email changes, the old private link is revoked and the address becomes unverified until a new link is used.
+- **Delete record**: permanently removes one lead after confirmation.
+- **Clear archived**: appears when archived records exist and permanently clears only records explicitly labelled Archived.
+
+Use **Archived** for records staff no longer need in the working queue, then clear them when appropriate under the organisation's retention policy.
 
 ## 4. Prices
 
-Open **Prices** for the safe price editor.
+Prices remain the monetary source of truth. The Journey Editor intentionally does not duplicate formulas or allow arbitrary price editing inside cards.
 
-Prices are grouped into:
+When a price changes:
 
-- Web & Accessibility
-- Tech & Support
-- Business Support & Marketing
+1. update it under **Prices**;
+2. save;
+3. purge all applicable caches;
+4. verify a normal public request shows the new value;
+5. restore/test if it was only a temporary QA mutation.
 
-Use the search field to find a service. Enter prices as numbers without a currency sign, then select **Save all prices**.
+## 5. Customer journey / Visual Journey Editor
 
-The route, billing period, formula, and tailored-quote rules are locked. Changing a price cannot disconnect a screen.
+The hierarchy follows:
 
-All public totals are shown excluding VAT. The VAT wording is controlled under Emails & branding.
+**Opening → Start → Web / Tech / Business → Review → Contact → Success**
 
-### Important price-editing rule
+Each journey card can be expanded in place and saved by AJAX without a full page reload.
 
-Do not enter VAT-inclusive figures unless Inkfire intentionally changes the public VAT wording and quoting policy. The bundled formulas assume the catalogue values are excluding VAT.
+### Safe editing
 
-## 5. Customer journey
+Editable card content includes customer-facing title, description, question wording, helpers, required state, safe field settings, choices and compatible incoming connections.
 
-Open **Customer journey** to review what customers are asked.
+### Add / Duplicate
 
-The map is grouped into Start, Web & Accessibility, Tech & Support, and Business Support & Marketing. Conditional screens are labelled.
+- **+ Add** creates a new editor-owned unconnected Draft after a card or inside a lane.
+- **Duplicate** is the easiest way to start from a similar screen. It creates fresh IDs and stays unconnected until deliberately routed.
 
-The normal dashboard does not edit route internals. This is intentional. It prevents a small wording or price change from breaking the calculator graph.
+Unconnected drafts do not appear to customers.
 
-### Reapply blueprint
+### Reorder
 
-Use **Reapply blueprint** only when the journey is damaged or has been changed by controlled tooling. The live journey is backed up first.
+Use pointer drag for convenience, or **Move up / Move down** as the keyboard-accessible equivalent. Reordering is confined to siblings in the same route.
 
-### Restore previous journey
+### Connect a new branch
 
-Use **Restore backup** to swap the current and previous journeys. This provides a single rollback step. Prices and email settings are separate and are not rolled back by this action.
+A clean workflow is:
+
+1. add a new choice to the earlier service selection;
+2. duplicate/add the target screen;
+3. edit the new screen;
+4. connect it to the compatible earlier choice;
+5. save;
+6. test the public route.
+
+The editor writes to the existing calculator routing model rather than maintaining a second flow database.
+
+### Undo and recovery
+
+**Undo last change** keeps one rolling pre-change journey snapshot. The older blueprint backup/restore remains a separate larger recovery mechanism.
+
+### Minimise an editor card
+
+When a card is expanded, its Edit button changes to **Minimise** and a second **Minimise card** control appears beside Save. Either collapses the editor without navigating or reloading the page.
+
+### Change opening/contact/success images
+
+The Journey hierarchy now contains image controls exactly where the visual is used:
+
+- **Opening slide → Opening image**
+- **Shared finish → Contact details → Contact image**
+- **Shared finish → Success → Closing image**
+
+Click the thumbnail or **Choose image** to open the normal WordPress Media Library. Select an image and choose **Use this image**; it saves immediately by AJAX. **Remove** clears the image. Removing an image does not delete it from WordPress Media Library.
 
 ## 6. Emails & branding
 
-### Email notifications
+Configure the team recipient, optional CCs, sender identity, customer confirmation, VAT/disclaimer wording, logo/imagery, privacy policy and public labels.
+
+Use a sender address verified by the active SMTP provider. A successful `wp_mail()` call is not the same thing as proving final inbox placement, so live SMTP acceptance is part of release testing.
+
+The 1.6 frontend reuses the original Inkfire personality with a premium Brief → Plan → Quote intro, responsive image hero, live estimate and accessible dark/light treatment.
+
+## 7. Advanced: retention and lead capture
+
+### Early capture
+
+**Offer name + email save before the first service question** controls the soft capture step.
+
+Customers can always choose **Continue without saving**. Anonymous selections are still recoverable on the same device through local browser storage, without name/email contact PII.
+
+### Optional marketing permission
+
+**Show a separate optional marketing opt-in** controls whether the independent marketing checkbox appears. It remains unchecked by default in the customer UI.
+
+The save/resume email is operational and is not treated as marketing permission.
+
+### Retention
 
 Configure:
 
-- team recipient
-- optional comma-separated CC recipients
-- sender name
-- verified sender email
-- team subject prefix
-- customer subject
-- customer confirmation toggle
-- customer email introduction
+- anonymous local-browser recovery duration;
+- email-linked saved-brief retention;
+- completed-enquiry retention.
 
-Use an address verified by the active SMTP provider. WordPress accepting `wp_mail()` is not proof that the message reached an inbox.
+Expired server-side saved briefs/enquiries are removed by the scheduled cleanup routine according to the configured periods.
 
-### Customer experience
+## 8. Advanced: spam / abuse protection
 
-Configure:
+The calculator always keeps its existing nonce, honeypot, rate-limit and duplicate/idempotency layers.
 
-- launch-button label
-- calculator title
-- currency symbol
-- VAT note
-- estimate disclaimer
-- live-summary toggle
-- phone requirement
-- privacy-policy URL
-- privacy-consent wording
-- logo URL
-- success message
+### Cloudflare Turnstile
 
-The intro and testimonial defaults remain in the settings option for backwards compatibility. The normal 1.4 screen exposes the operational fields most likely to need changes.
+To enable Turnstile:
 
-## 7. Advanced
+1. create the production widget in Cloudflare;
+2. enter the **site key** and **secret key**;
+3. enable Turnstile;
+4. save settings;
+5. run a real magic-link send and final-submission test.
 
-### Quote-only mode
+Turnstile is applied to magic-link sends and final submission. The server verifies the token against Cloudflare and requires the expected action and hostname. The secret is omitted from public frontend config and configuration exports.
 
-Enable **Quote-only mode** to hide calculated prices from customers while still collecting their scope. The server continues to calculate and store the underlying estimate.
+Do not enable Turnstile with missing/incorrect keys on production.
 
-### Attachments
+### Abuse thresholds
 
-Choose whether team emails include:
+Advanced exposes bounded controls for:
 
-- PDF report
-- JSON report
-- ZIP package
+- minimum interaction time;
+- magic-link resend cooldown;
+- magic links per email/hour;
+- magic links per connection/hour;
+- draft saves per connection/hour;
+- final submits per connection/hour;
+- final submits per email/hour;
+- duplicate submission cooldown.
 
-A ZIP package requires the PHP `ZipArchive` extension. Without it, readable PDF and JSON reports are attached separately.
+Start with the supplied defaults and tune from real traffic rather than aggressively blocking legitimate customers.
 
-### Upload limits
+## 9. Save/resume behaviour
 
-The current route does not request uploads, but future approved flows can use the controls for:
+A customer who chooses to save receives a private magic link and continues immediately.
 
-- allowed extensions
-- maximum file size
-- maximum total upload size
-- maximum files per upload question
+On another device/browser, the link restores the saved screen/answers. When the link is used, the saved brief is marked email-verified. The visible token is removed from the browser URL after capture.
 
-Executable and browser-active formats remain blocked even when entered in the settings field.
+Resume URLs are restricted to the site's exact HTTPS origin. Magic tokens are stored as hashes in the unfinished-brief record.
 
-### Retention and abuse controls
+## 10. Public retention behaviour
 
-- Saved-draft retention: 1 to 90 days
-- Stored-enquiry retention: 30 to 3,650 days
-- Repeat-submission cooldown: 5 to 600 seconds
+The customer experience now includes:
 
-### Export configuration
+- premium opening with clear time/value expectations;
+- early soft capture with Skip;
+- Brief → Plan → Quote stage guidance;
+- route-level progress;
+- early live price reward;
+- desktop live-summary panel;
+- mobile sticky estimate pill/drawer;
+- contextual help;
+- local browser recovery;
+- recoverable close/leave dialog;
+- route-completion reward;
+- add-another-service flow;
+- late final contact step that reuses captured name/email;
+- tailored/manual services that continue rather than dead-end.
 
-The JSON export includes the journey, prices, blueprint version, and non-secret settings. It omits team, CC, and sender email addresses.
+## 11. Deployment note
 
-### Reset metrics
+Version 1.6.1 keeps `FOUNDATION_DB_VERSION` at **1.4.0** and does not require a schema migration. Do not reapply the current Inkfire blueprint merely because the plugin version changes.
 
-Resetting metrics clears only anonymous counters and recent failure text. It does not delete enquiries, prices, or configuration.
-
-## 8. Adding the calculator to a page
-
-Use:
-
-```text
-[foundation_form]
-```
-
-For an existing custom button:
-
-```text
-[foundation_form button="false"]
-```
-
-Give the custom element either `.foundation-trigger` or `data-foundation-calculator-open`.
-
-Only one modal is printed per page even when the shortcode appears more than once.
-
-## 9. Release-day checks
-
-Complete all of these on staging:
-
-1. Open and close the calculator with keyboard and pointer.
-2. Complete a small website estimate and confirm the one-off formula.
-3. Complete a route that produces a range.
-4. Complete a route that requires a tailored quote.
-5. Combine at least two main routes.
-6. Save progress, receive the link, and restore it in a private browser window.
-7. Submit the estimate twice using the same screen and confirm only one enquiry exists.
-8. Confirm the team email, customer email, inbox record, PDF, and JSON.
-9. Test on a narrow mobile viewport.
-10. Purge page cache, object cache, and CDN cache, then repeat the public test.
-
-## 10. Troubleshooting
-
-### The Overview says the journey is custom or legacy
-
-Use **Back up and apply journey**. If it returns after applying, a protected tool or old integration is changing `foundation_form_data`.
-
-### The enquiry is in the inbox but no email arrived
-
-The plugin completed its most important job. Check the email status, SMTP logs, sender-domain verification, spam folder, and provider limits.
-
-### The calculator opens with old questions or prices
-
-Purge the WordPress page cache, server cache, CDN, and browser cache. The config response is sent with no-cache headers, but a cached page can still contain an older loader.
-
-### The ZIP is missing
-
-Check the Overview health item for `ZipArchive`. PDF and JSON remain available when ZIP support is absent.
-
-### A saved link opens the home page
-
-Saved links are intentionally constrained to the same site origin. Ensure the page URL is HTTPS and not being rewritten to a different host or port by a proxy.
+After any upgrade purge NitroPack, WordPress object cache and host LiteSpeed cache, then test a normal cacheable request.

@@ -86,6 +86,7 @@ function foundation_get_default_settings() {
 		'intro_heading'                 => 'A clearer route to the right support',
 		'intro_text'                    => 'Choose the areas you need, answer only the relevant questions, and receive a clear split between one-off work, monthly support and anything that needs a tailored quote.',
 		'testimonial_image_url'         => 'https://inkfire.co.uk/wp-content/uploads/2025/12/Screenshot-2025-12-01-at-22.00.39.png',
+		'success_image_url'             => '',
 		'testimonial_heading'           => 'Built around real people',
 		'testimonial_quote'             => 'Inkfire combines web, technology, creative support and accessibility in one joined-up team.',
 		'testimonial_attribution'       => 'Inkfire',
@@ -102,9 +103,23 @@ function foundation_get_default_settings() {
 		'attach_pdf_summary'            => 1,
 		'attach_json_summary'           => 1,
 		'attach_zip_package'            => 1,
-		'draft_retention_days'          => 14,
-		'submission_cooldown_seconds'   => 30,
+		'draft_retention_days'          => 30,
+		'anonymous_local_retention_days'=> 14,
 		'lead_retention_days'           => 180,
+		'early_capture_enabled'         => 1,
+		'marketing_opt_in_enabled'      => 0,
+		'marketing_opt_in_label'        => 'I would like occasional Inkfire tips and updates by email.',
+		'turnstile_enabled'             => 0,
+		'turnstile_site_key'            => '',
+		'turnstile_secret_key'          => '',
+		'magic_link_resend_seconds'     => 60,
+		'magic_link_email_limit_hour'   => 5,
+		'magic_link_ip_limit_hour'      => 10,
+		'draft_save_ip_limit_hour'      => 120,
+		'submit_ip_limit_hour'          => 8,
+		'submit_email_limit_hour'       => 5,
+		'submission_cooldown_seconds'   => 30,
+		'minimum_interaction_seconds'   => 2,
 	);
 }
 
@@ -125,14 +140,29 @@ function foundation_is_quote_mode_enabled( $settings = null ) {
 
 function foundation_get_default_metrics() {
 	return array(
-		'form_views'       => 0,
-		'form_starts'      => 0,
-		'responses_saved'  => 0,
-		'saved_drafts'     => 0,
-		'incomplete'       => 0,
-		'failures'         => 0,
-		'last_failure'     => '',
-		'last_saved_draft' => '',
+		'form_views'          => 0,
+		'form_starts'         => 0,
+		'early_capture_views' => 0,
+		'email_captures'      => 0,
+		'email_verified'      => 0,
+		'first_estimates'     => 0,
+		'route_completions'   => 0,
+		'review_reached'      => 0,
+		'responses_saved'     => 0,
+		'saved_drafts'        => 0,
+		'resumes'             => 0,
+		'incomplete'          => 0,
+		'calculator_closes'   => 0,
+		'back_clicks'         => 0,
+		'validation_errors'   => 0,
+		'not_sure_choices'    => 0,
+		'failures'            => 0,
+		'screen_stats'        => array(),
+		'last_failure'        => '',
+		'last_failure_at'     => '',
+		'last_failure_version'=> '',
+		'last_success_at'     => '',
+		'last_saved_draft'    => '',
 	);
 }
 
@@ -174,6 +204,49 @@ function foundation_set_metric_meta( $key, $value ) {
 	return $metrics;
 }
 
+function foundation_increment_screen_metric( $screen_id, $metric ) {
+	$screen_id = substr( sanitize_key( $screen_id ), 0, 100 );
+	$metric    = sanitize_key( $metric );
+	$allowed   = array( 'views', 'completions', 'backs', 'validation_errors' );
+	if ( '' === $screen_id || ! in_array( $metric, $allowed, true ) ) {
+		return foundation_get_metrics();
+	}
+
+	$metrics = foundation_get_metrics();
+	$stats   = isset( $metrics['screen_stats'] ) && is_array( $metrics['screen_stats'] ) ? $metrics['screen_stats'] : array();
+	if ( ! isset( $stats[ $screen_id ] ) || ! is_array( $stats[ $screen_id ] ) ) {
+		if ( count( $stats ) >= 80 ) {
+			return $metrics;
+		}
+		$stats[ $screen_id ] = array( 'views' => 0, 'completions' => 0, 'backs' => 0, 'validation_errors' => 0 );
+	}
+	$stats[ $screen_id ][ $metric ] = max( 0, intval( $stats[ $screen_id ][ $metric ] ?? 0 ) + 1 );
+	$metrics['screen_stats'] = $stats;
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
+}
+
+function foundation_record_failure( $message ) {
+	$metrics                         = foundation_get_metrics();
+	$metrics['failures']             = max( 0, intval( $metrics['failures'] ?? 0 ) + 1 );
+	$metrics['last_failure']         = substr( sanitize_text_field( (string) $message ), 0, 300 );
+	$metrics['last_failure_at']      = current_time( 'mysql' );
+	$metrics['last_failure_version'] = defined( 'FOUNDATION_VERSION' ) ? FOUNDATION_VERSION : '';
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
+}
+
+function foundation_record_success() {
+	$metrics                    = foundation_get_metrics();
+	$metrics['last_success_at'] = current_time( 'mysql' );
+	/* A later successful submission resolves the dashboard alert without erasing the historical failure counter. */
+	$metrics['last_failure']         = '';
+	$metrics['last_failure_at']      = '';
+	$metrics['last_failure_version'] = '';
+	update_option( 'foundation_form_metrics', $metrics, false );
+	return $metrics;
+}
+
 function foundation_register_default_settings() {
 	$current = get_option( 'foundation_form_settings', null );
 	if ( null === $current ) {
@@ -185,6 +258,13 @@ function foundation_register_default_settings() {
 	if ( $merged !== $current ) {
 		update_option( 'foundation_form_settings', $merged, false );
 	}
+}
+
+
+function foundation_limit_setting_token( $value, $length = 255 ) {
+	$value = preg_replace( '/[^A-Za-z0-9._-]/', '', (string) $value );
+	$value = is_string( $value ) ? $value : '';
+	return substr( $value, 0, max( 1, absint( $length ) ) );
 }
 
 function foundation_sanitize_settings( $input ) {
@@ -199,9 +279,12 @@ function foundation_sanitize_settings( $input ) {
 		'attach_pdf_summary',
 		'attach_json_summary',
 		'attach_zip_package',
+		'early_capture_enabled',
+		'marketing_opt_in_enabled',
+		'turnstile_enabled',
 	);
 	$urls = array(
-		'logo_url', 'intro_image_url', 'testimonial_image_url', 'portfolio_url',
+		'logo_url', 'intro_image_url', 'testimonial_image_url', 'success_image_url', 'portfolio_url',
 		'linkedin_url', 'twitter_url', 'facebook_url', 'instagram_url', 'tiktok_url',
 		'privacy_policy_url',
 	);
@@ -209,9 +292,17 @@ function foundation_sanitize_settings( $input ) {
 		'max_file_size_mb'            => array( 1, 100 ),
 		'max_total_upload_mb'         => array( 1, 250 ),
 		'max_files_per_field'         => array( 1, 25 ),
-		'draft_retention_days'        => array( 1, 90 ),
-		'submission_cooldown_seconds' => array( 5, 600 ),
-		'lead_retention_days'         => array( 30, 3650 ),
+		'draft_retention_days'          => array( 1, 90 ),
+		'anonymous_local_retention_days'=> array( 1, 90 ),
+		'lead_retention_days'           => array( 30, 3650 ),
+		'magic_link_resend_seconds'     => array( 30, 900 ),
+		'magic_link_email_limit_hour'   => array( 1, 20 ),
+		'magic_link_ip_limit_hour'      => array( 1, 50 ),
+		'draft_save_ip_limit_hour'      => array( 5, 200 ),
+		'submit_ip_limit_hour'          => array( 1, 50 ),
+		'submit_email_limit_hour'       => array( 1, 20 ),
+		'submission_cooldown_seconds'   => array( 5, 600 ),
+		'minimum_interaction_seconds'   => array( 0, 30 ),
 	);
 
 	foreach ( $defaults as $key => $default ) {
@@ -231,6 +322,10 @@ function foundation_sanitize_settings( $input ) {
 		}
 
 		switch ( $key ) {
+			case 'turnstile_site_key':
+			case 'turnstile_secret_key':
+				$output[ $key ] = foundation_limit_setting_token( $value, 255 );
+				break;
 			case 'admin_email':
 			case 'from_email':
 				$output[ $key ] = sanitize_email( $value );
@@ -479,6 +574,432 @@ function foundation_normalize_form_data( $steps ) {
 		);
 	}
 	return array_values( $normalized );
+}
+
+
+/**
+ * Return the visual editor group for a journey step.
+ *
+ * The public flow does not depend on this helper. It only gives the admin a
+ * predictable, low-maintenance hierarchy without adding a second schema.
+ */
+function foundation_journey_group_for_step( $step ) {
+	$step_id = is_array( $step ) ? (string) ( isset( $step['id'] ) ? $step['id'] : '' ) : (string) $step;
+	if ( 0 === strpos( $step_id, 'web_' ) ) {
+		return 'web';
+	}
+	if ( 0 === strpos( $step_id, 'tech_' ) ) {
+		return 'tech';
+	}
+	if ( 0 === strpos( $step_id, 'business_' ) ) {
+		return 'business';
+	}
+	return 'start';
+}
+
+function foundation_journey_allowed_groups() {
+	return array( 'start', 'web', 'tech', 'business' );
+}
+
+/**
+ * List every answer that can route to another screen.
+ *
+ * Keys are stable, human-readable connection handles used only by the admin
+ * editor. The authoritative public route data remains route_step_ids on the
+ * original fields/options.
+ *
+ * @return array<string,array<string,string>>
+ */
+function foundation_journey_connection_sources( $steps ) {
+	$steps   = foundation_normalize_form_data( $steps );
+	$sources = array();
+	foreach ( $steps as $step ) {
+		$step_id    = (string) ( isset( $step['id'] ) ? $step['id'] : '' );
+		$step_title = (string) ( isset( $step['title'] ) ? $step['title'] : $step_id );
+		$group      = foundation_journey_group_for_step( $step );
+		foreach ( (array) ( isset( $step['fields'] ) ? $step['fields'] : array() ) as $field ) {
+			$field_id    = (string) ( isset( $field['id'] ) ? $field['id'] : '' );
+			$field_label = (string) ( isset( $field['label'] ) ? $field['label'] : '' );
+			if ( 'service_card' === ( isset( $field['type'] ) ? $field['type'] : '' ) ) {
+				foreach ( (array) ( isset( $field['options'] ) ? $field['options'] : array() ) as $option ) {
+					$value = sanitize_key( isset( $option['value'] ) ? $option['value'] : '' );
+					if ( '' === $value ) {
+						continue;
+					}
+					$key = 'option:' . $step_id . ':' . $field_id . ':' . $value;
+					$sources[ $key ] = array(
+						'key'          => $key,
+						'type'         => 'option',
+						'step_id'      => $step_id,
+						'step_title'   => $step_title,
+						'field_id'     => $field_id,
+						'field_label'  => $field_label,
+						'option_value' => $value,
+						'option_label' => sanitize_text_field( isset( $option['label'] ) ? $option['label'] : $value ),
+						'group'        => $group,
+					);
+				}
+			}
+			if ( 'toggle' === ( isset( $field['type'] ) ? $field['type'] : '' ) ) {
+				$key = 'toggle:' . $step_id . ':' . $field_id . ':yes';
+				$sources[ $key ] = array(
+					'key'          => $key,
+					'type'         => 'toggle',
+					'step_id'      => $step_id,
+					'step_title'   => $step_title,
+					'field_id'     => $field_id,
+					'field_label'  => $field_label,
+					'option_value' => 'yes',
+					'option_label' => sanitize_text_field( isset( $field['yes_label'] ) ? $field['yes_label'] : 'Yes' ),
+					'group'        => $group,
+				);
+			}
+		}
+	}
+	return $sources;
+}
+
+/**
+ * Return the incoming connection handles for a target step.
+ *
+ * @return array<int,string>
+ */
+function foundation_journey_incoming_connections( $steps, $target_step_id ) {
+	$steps          = foundation_normalize_form_data( $steps );
+	$target_step_id = sanitize_key( $target_step_id );
+	$incoming       = array();
+	foreach ( $steps as $step ) {
+		$step_id = (string) ( isset( $step['id'] ) ? $step['id'] : '' );
+		foreach ( (array) ( isset( $step['fields'] ) ? $step['fields'] : array() ) as $field ) {
+			$field_id = (string) ( isset( $field['id'] ) ? $field['id'] : '' );
+			if ( 'service_card' === ( isset( $field['type'] ) ? $field['type'] : '' ) ) {
+				foreach ( (array) ( isset( $field['options'] ) ? $field['options'] : array() ) as $option ) {
+					$targets = foundation_normalize_route_ids( isset( $option['route_step_ids'] ) ? $option['route_step_ids'] : array() );
+					if ( empty( $targets ) && ! empty( $option['route_step_id'] ) ) {
+						$targets = array( sanitize_key( $option['route_step_id'] ) );
+					}
+					if ( in_array( $target_step_id, $targets, true ) ) {
+						$value = sanitize_key( isset( $option['value'] ) ? $option['value'] : '' );
+						if ( '' !== $value ) {
+							$incoming[] = 'option:' . $step_id . ':' . $field_id . ':' . $value;
+						}
+					}
+				}
+			}
+			if ( 'toggle' === ( isset( $field['type'] ) ? $field['type'] : '' ) ) {
+				$targets = foundation_normalize_route_ids( isset( $field['yes_route_step_ids'] ) ? $field['yes_route_step_ids'] : array() );
+				if ( in_array( $target_step_id, $targets, true ) ) {
+					$incoming[] = 'toggle:' . $step_id . ':' . $field_id . ':yes';
+				}
+			}
+		}
+	}
+	return array_values( array_unique( $incoming ) );
+}
+
+/**
+ * Replace every incoming route to a target with the selected admin sources.
+ * Self-links are ignored. This keeps the visual editor and the existing public
+ * routing engine on one data model.
+ */
+function foundation_journey_set_incoming_connections( $steps, $target_step_id, $connection_keys ) {
+	$steps           = foundation_normalize_form_data( $steps );
+	$target_step_id  = sanitize_key( $target_step_id );
+	$connection_keys = array_values( array_unique( array_filter( array_map( 'sanitize_text_field', (array) $connection_keys ) ) ) );
+	$selected        = array_fill_keys( $connection_keys, true );
+
+	foreach ( $steps as $step_index => $step ) {
+		$source_step_id = (string) ( isset( $step['id'] ) ? $step['id'] : '' );
+		foreach ( (array) ( isset( $step['fields'] ) ? $step['fields'] : array() ) as $field_index => $field ) {
+			$field_id = (string) ( isset( $field['id'] ) ? $field['id'] : '' );
+			if ( 'service_card' === ( isset( $field['type'] ) ? $field['type'] : '' ) ) {
+				foreach ( (array) ( isset( $field['options'] ) ? $field['options'] : array() ) as $option_index => $option ) {
+					$targets = foundation_normalize_route_ids( isset( $option['route_step_ids'] ) ? $option['route_step_ids'] : array() );
+					if ( empty( $targets ) && ! empty( $option['route_step_id'] ) ) {
+						$targets = array( sanitize_key( $option['route_step_id'] ) );
+					}
+					$targets = array_values( array_diff( $targets, array( $target_step_id ) ) );
+					$value   = sanitize_key( isset( $option['value'] ) ? $option['value'] : '' );
+					$key     = 'option:' . $source_step_id . ':' . $field_id . ':' . $value;
+					if ( $source_step_id !== $target_step_id && isset( $selected[ $key ] ) ) {
+						$targets[] = $target_step_id;
+					}
+					$steps[ $step_index ]['fields'][ $field_index ]['options'][ $option_index ]['route_step_ids'] = array_values( array_unique( $targets ) );
+					$steps[ $step_index ]['fields'][ $field_index ]['options'][ $option_index ]['route_step_id']  = '';
+				}
+			}
+			if ( 'toggle' === ( isset( $field['type'] ) ? $field['type'] : '' ) ) {
+				$targets = foundation_normalize_route_ids( isset( $field['yes_route_step_ids'] ) ? $field['yes_route_step_ids'] : array() );
+				$targets = array_values( array_diff( $targets, array( $target_step_id ) ) );
+				$key     = 'toggle:' . $source_step_id . ':' . $field_id . ':yes';
+				if ( $source_step_id !== $target_step_id && isset( $selected[ $key ] ) ) {
+					$targets[] = $target_step_id;
+				}
+				$steps[ $step_index ]['fields'][ $field_index ]['yes_route_step_ids'] = array_values( array_unique( $targets ) );
+			}
+		}
+	}
+	return foundation_normalize_form_data( $steps );
+}
+
+/**
+ * Reorder only siblings in one visual route. Other route positions remain
+ * untouched, so moving a Business card cannot silently reshuffle Web screens.
+ */
+function foundation_journey_reorder_group( $steps, $group, $ordered_ids ) {
+	$steps = foundation_normalize_form_data( $steps );
+	$group = sanitize_key( $group );
+	if ( ! in_array( $group, foundation_journey_allowed_groups(), true ) ) {
+		return $steps;
+	}
+	$current_ids = array();
+	$by_id       = array();
+	foreach ( $steps as $step ) {
+		if ( foundation_journey_group_for_step( $step ) !== $group ) {
+			continue;
+		}
+		$current_ids[]       = $step['id'];
+		$by_id[ $step['id'] ] = $step;
+	}
+	$order = array();
+	foreach ( (array) $ordered_ids as $step_id ) {
+		$step_id = sanitize_key( $step_id );
+		if ( isset( $by_id[ $step_id ] ) && ! in_array( $step_id, $order, true ) ) {
+			$order[] = $step_id;
+		}
+	}
+	foreach ( $current_ids as $step_id ) {
+		if ( ! in_array( $step_id, $order, true ) ) {
+			$order[] = $step_id;
+		}
+	}
+	$ordered_steps = array();
+	foreach ( $order as $step_id ) {
+		$ordered_steps[] = $by_id[ $step_id ];
+	}
+	$cursor = 0;
+	foreach ( $steps as $index => $step ) {
+		if ( foundation_journey_group_for_step( $step ) === $group && isset( $ordered_steps[ $cursor ] ) ) {
+			$steps[ $index ] = $ordered_steps[ $cursor ];
+			$cursor++;
+		}
+	}
+	return array_values( $steps );
+}
+
+function foundation_journey_create_step( $steps, $group, $after_step_id = '' ) {
+	$steps = foundation_normalize_form_data( $steps );
+	$group = sanitize_key( $group );
+	$after_step_id = sanitize_key( $after_step_id );
+	if ( ! in_array( $group, foundation_journey_allowed_groups(), true ) ) {
+		$group = 'start';
+	}
+	$step_id  = foundation_generate_id( $group . '_custom' );
+	$field_id = foundation_generate_id( $group . '_question' );
+	$new_step = array(
+		'id'             => $step_id,
+		'title'          => 'New screen',
+		'subtitle'       => 'Add the customer-facing question and choices, then connect this screen when it is ready.',
+		'is_conditional' => true,
+		'fields'         => array(
+			array(
+				'id'             => $field_id,
+				'type'           => 'service_card',
+				'variant'        => 'services',
+				'role'           => '',
+				'selection_mode' => 'single',
+				'label'          => 'What would you like to ask?',
+				'helper'         => '',
+				'required'       => true,
+				'options'        => array(
+					array(
+						'label'          => 'New choice',
+						'value'          => foundation_generate_id( 'choice' ),
+						'price'          => 0,
+						'route_step_id'  => '',
+						'route_step_ids' => array(),
+					),
+				),
+			),
+		),
+	);
+	$insert_at = count( $steps );
+	$after_found = false;
+	foreach ( $steps as $index => $step ) {
+		if ( foundation_journey_group_for_step( $step ) !== $group ) {
+			continue;
+		}
+		$insert_at = $index + 1;
+		if ( '' !== $after_step_id && ( isset( $step['id'] ) ? $step['id'] : '' ) === $after_step_id ) {
+			$after_found = true;
+			break;
+		}
+	}
+	if ( '' !== $after_step_id && ! $after_found ) {
+		$insert_at = count( $steps );
+		foreach ( $steps as $index => $step ) {
+			if ( foundation_journey_group_for_step( $step ) === $group ) {
+				$insert_at = $index + 1;
+			}
+		}
+	}
+	array_splice( $steps, $insert_at, 0, array( $new_step ) );
+	return array( 'steps' => foundation_normalize_form_data( $steps ), 'step_id' => $step_id );
+}
+
+function foundation_journey_duplicate_step( $steps, $source_step_id ) {
+	$steps          = foundation_normalize_form_data( $steps );
+	$source_step_id = sanitize_key( $source_step_id );
+	foreach ( $steps as $index => $step ) {
+		if ( ( isset( $step['id'] ) ? $step['id'] : '' ) !== $source_step_id ) {
+			continue;
+		}
+		$group          = foundation_journey_group_for_step( $step );
+		$duplicate      = $step;
+		$duplicate['id'] = foundation_generate_id( $group . '_copy' );
+		$duplicate['title'] = 'Copy of ' . ( isset( $step['title'] ) ? $step['title'] : 'screen' );
+		$duplicate['is_conditional'] = true;
+		$field_map = array();
+		foreach ( (array) ( isset( $duplicate['fields'] ) ? $duplicate['fields'] : array() ) as $field_index => $field ) {
+			$old_id = isset( $field['id'] ) ? $field['id'] : '';
+			$new_id = foundation_generate_id( $group . '_field' );
+			$field_map[ $old_id ] = $new_id;
+			$duplicate['fields'][ $field_index ]['id'] = $new_id;
+		}
+		foreach ( (array) ( isset( $duplicate['fields'] ) ? $duplicate['fields'] : array() ) as $field_index => $field ) {
+			foreach ( array( 'billing_from_field', 'unit_source_field_id', 'quantity_source_field_id' ) as $reference_key ) {
+				if ( ! empty( $field[ $reference_key ] ) && isset( $field_map[ $field[ $reference_key ] ] ) ) {
+					$duplicate['fields'][ $field_index ][ $reference_key ] = $field_map[ $field[ $reference_key ] ];
+				}
+			}
+		}
+		array_splice( $steps, $index + 1, 0, array( $duplicate ) );
+		return array( 'steps' => foundation_normalize_form_data( $steps ), 'step_id' => $duplicate['id'] );
+	}
+	return array( 'steps' => $steps, 'step_id' => '' );
+}
+
+/**
+ * Apply user-facing edits to one step while preserving pricing and routing
+ * metadata that the mini builder does not expose.
+ */
+function foundation_journey_patch_step( $steps, $step_id, $payload ) {
+	$steps   = foundation_normalize_form_data( $steps );
+	$step_id = sanitize_key( $step_id );
+	$payload = is_array( $payload ) ? $payload : array();
+	foreach ( $steps as $step_index => $step ) {
+		if ( ( isset( $step['id'] ) ? $step['id'] : '' ) !== $step_id ) {
+			continue;
+		}
+		$steps[ $step_index ]['title'] = sanitize_text_field( isset( $payload['title'] ) ? $payload['title'] : $step['title'] );
+		$steps[ $step_index ]['subtitle'] = sanitize_textarea_field( isset( $payload['subtitle'] ) ? $payload['subtitle'] : $step['subtitle'] );
+		$steps[ $step_index ]['is_conditional'] = foundation_normalize_bool( isset( $payload['is_conditional'] ) ? $payload['is_conditional'] : false );
+
+		$payload_fields = isset( $payload['fields'] ) && is_array( $payload['fields'] ) ? $payload['fields'] : array();
+		$payload_by_id  = array();
+		foreach ( $payload_fields as $payload_field ) {
+			if ( is_array( $payload_field ) && ! empty( $payload_field['id'] ) ) {
+				$payload_by_id[ sanitize_key( $payload_field['id'] ) ] = $payload_field;
+			}
+		}
+
+		foreach ( $steps[ $step_index ]['fields'] as $field_index => $field ) {
+			$field_id = isset( $field['id'] ) ? $field['id'] : '';
+			if ( ! isset( $payload_by_id[ $field_id ] ) ) {
+				continue;
+			}
+			$edit = $payload_by_id[ $field_id ];
+			foreach ( array( 'label', 'placeholder' ) as $key ) {
+				if ( isset( $edit[ $key ] ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ][ $key ] = sanitize_text_field( $edit[ $key ] );
+				}
+			}
+			foreach ( array( 'helper', 'text' ) as $key ) {
+				if ( isset( $edit[ $key ] ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ][ $key ] = sanitize_textarea_field( $edit[ $key ] );
+				}
+			}
+			if ( array_key_exists( 'required', $edit ) ) {
+				$steps[ $step_index ]['fields'][ $field_index ]['required'] = foundation_normalize_bool( $edit['required'] );
+			}
+			$type = isset( $field['type'] ) ? $field['type'] : '';
+			if ( 'service_card' === $type ) {
+				$mode = sanitize_key( isset( $edit['selection_mode'] ) ? $edit['selection_mode'] : $field['selection_mode'] );
+				$steps[ $step_index ]['fields'][ $field_index ]['selection_mode'] = in_array( $mode, array( 'single', 'multi' ), true ) ? $mode : 'single';
+				$existing_by_value = array();
+				foreach ( (array) ( isset( $field['options'] ) ? $field['options'] : array() ) as $option ) {
+					$value = sanitize_key( isset( $option['value'] ) ? $option['value'] : '' );
+					if ( '' !== $value ) {
+						$existing_by_value[ $value ] = $option;
+					}
+				}
+				$options = array();
+				$seen    = array();
+				foreach ( (array) ( isset( $edit['options'] ) ? $edit['options'] : array() ) as $option_edit ) {
+					if ( ! is_array( $option_edit ) ) {
+						continue;
+					}
+					$label = sanitize_text_field( isset( $option_edit['label'] ) ? $option_edit['label'] : '' );
+					if ( '' === $label ) {
+						continue;
+					}
+					$value = sanitize_key( isset( $option_edit['value'] ) ? $option_edit['value'] : '' );
+					if ( '' === $value || isset( $seen[ $value ] ) ) {
+						$value = foundation_generate_id( 'choice' );
+					}
+					$seen[ $value ] = true;
+					$option = isset( $existing_by_value[ $value ] ) ? $existing_by_value[ $value ] : array(
+						'label'          => $label,
+						'value'          => $value,
+						'price'          => 0,
+						'route_step_id'  => '',
+						'route_step_ids' => array(),
+					);
+					$option['label'] = $label;
+					$option['value'] = $value;
+					$options[] = $option;
+				}
+				if ( ! empty( $options ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ]['options'] = $options;
+				}
+			}
+			if ( in_array( $type, array( 'number_input', 'range_slider' ), true ) ) {
+				foreach ( array( 'min', 'max', 'step' ) as $key ) {
+					if ( isset( $edit[ $key ] ) && is_numeric( $edit[ $key ] ) ) {
+						$steps[ $step_index ]['fields'][ $field_index ][ $key ] = (float) $edit[ $key ];
+					}
+				}
+				if ( isset( $edit['unit'] ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ]['unit'] = sanitize_text_field( $edit['unit'] );
+				}
+			}
+			if ( 'toggle' === $type ) {
+				if ( isset( $edit['yes_label'] ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ]['yes_label'] = sanitize_text_field( $edit['yes_label'] );
+				}
+				if ( isset( $edit['no_label'] ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ]['no_label'] = sanitize_text_field( $edit['no_label'] );
+				}
+			}
+			if ( 'file_upload' === $type ) {
+				if ( isset( $edit['accept'] ) ) {
+					$steps[ $step_index ]['fields'][ $field_index ]['accept'] = sanitize_text_field( $edit['accept'] );
+				}
+				foreach ( array( 'max_files', 'max_file_size_mb' ) as $key ) {
+					if ( isset( $edit[ $key ] ) ) {
+						$steps[ $step_index ]['fields'][ $field_index ][ $key ] = max( 1, intval( $edit[ $key ] ) );
+					}
+				}
+			}
+		}
+		return foundation_normalize_form_data( $steps );
+	}
+	return $steps;
+}
+
+function foundation_journey_is_custom_step_id( $step_id ) {
+	$step_id = sanitize_key( $step_id );
+	return false !== strpos( $step_id, '_custom_' ) || false !== strpos( $step_id, '_copy_' );
 }
 
 function foundation_get_core_selection_field_ids( $steps ) {
@@ -854,6 +1375,55 @@ function foundation_flatten_summary_for_export( $contact, $summary, $quote, $set
 	return array_values( array_filter( $lines, static function ( $line ) { return null !== $line; } ) );
 }
 
+/**
+ * Create a temporary report file while preserving the real extension.
+ *
+ * WordPress wp_tempnam() deliberately strips the supplied extension and
+ * creates a .tmp file. Passing that path directly to wp_mail() makes the
+ * attachment appear as a blocked .tmp file in Outlook. Report files need a
+ * genuine, allow-listed extension so mail clients can identify their type.
+ */
+function foundation_create_temp_report_file( $filename ) {
+	$filename  = sanitize_file_name( basename( (string) $filename ) );
+	$extension = strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
+
+	if ( ! in_array( $extension, array( 'pdf', 'json', 'zip' ), true ) ) {
+		return '';
+	}
+
+	$temp_file = wp_tempnam( $filename );
+	if ( ! $temp_file ) {
+		return '';
+	}
+
+	$report_file = preg_replace( '/\.tmp$/i', '.' . $extension, $temp_file );
+	if ( ! is_string( $report_file ) || '' === $report_file || $report_file === $temp_file ) {
+		$report_file = $temp_file . '.' . $extension;
+	}
+
+	if ( file_exists( $report_file ) || ! @rename( $temp_file, $report_file ) ) {
+		@unlink( $temp_file );
+		return '';
+	}
+
+	return $report_file;
+}
+
+/**
+ * Build a safe, recognisable report filename for staff attachments.
+ */
+function foundation_get_report_filename( $reference, $extension ) {
+	$reference = sanitize_file_name( (string) $reference );
+	$extension = strtolower( sanitize_key( (string) $extension ) );
+	$stem      = 'foundation-project-estimate';
+
+	if ( '' !== $reference ) {
+		$stem .= '-' . $reference;
+	}
+
+	return $stem . '.' . $extension;
+}
+
 function foundation_pdf_escape_text( $text ) {
 	$text = remove_accents( (string) $text );
 	$text = preg_replace( '/[^\x20-\x7E]/', '?', $text );
@@ -923,7 +1493,7 @@ function foundation_generate_pdf_attachment( $contact, $summary, $quote, $settin
 	}
 	$pdf .= 'trailer << /Size ' . $object_index . ' /Root ' . $catalog_obj . " 0 R >>\nstartxref\n" . $xref_offset . "\n%%EOF";
 
-	$temp_file = wp_tempnam( 'foundation-project-estimate.pdf' );
+	$temp_file = foundation_create_temp_report_file( foundation_get_report_filename( $reference, 'pdf' ) );
 	if ( ! $temp_file || false === file_put_contents( $temp_file, $pdf ) ) {
 		if ( $temp_file ) {
 			@unlink( $temp_file );
@@ -958,7 +1528,7 @@ function foundation_generate_json_attachment( $contact, $summary, $quote, $setti
 		),
 	);
 
-	$temp_file = wp_tempnam( 'foundation-project-estimate.json' );
+	$temp_file = foundation_create_temp_report_file( foundation_get_report_filename( $reference, 'json' ) );
 	$json      = wp_json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
 	if ( ! $temp_file || empty( $json ) || false === file_put_contents( $temp_file, $json ) ) {
 		if ( $temp_file ) {
@@ -974,7 +1544,7 @@ function foundation_create_submission_package( $contact, $summary, $quote, $sett
 		return '';
 	}
 
-	$zip_path = wp_tempnam( 'foundation-project-estimate.zip' );
+	$zip_path = foundation_create_temp_report_file( foundation_get_report_filename( $reference, 'zip' ) );
 	if ( ! $zip_path ) {
 		return '';
 	}

@@ -1,145 +1,181 @@
-# Foundation Project Calculator 1.4 Deployment Notes
+# Foundation Project Calculator 1.6.1 Deployment Notes
 
-## Release classification
+## Release scope
 
-Version 1.4.0 is a **production candidate**. Do not replace the live calculator until the staging gates below pass on the real Inkfire stack.
+1.6.1 adds managed lead workflow controls, safer magic-link administration, collapsible Journey cards and inline WordPress Media Library controls on top of the 1.6.0 retention/customer experience.
 
-## Package
-
-Install the production ZIP whose root directory is:
-
-```text
-foundation-project-calculator/
-```
-
-Do not rename the root folder between environments. A stable directory keeps asset URLs, updater identity, and stored default-logo migration predictable.
+The Inkfire 2026 pricing blueprint remains the pricing/routing source of truth and the database schema version remains **1.4.0**.
 
 ## Before deployment
 
-1. Export the WordPress database.
-2. Copy the currently active calculator plugin folder.
-3. Record the current active plugin version and directory name.
-4. Record the live calculator page URL and shortcode placement.
-5. Capture the current email recipient, sender, SMTP provider, and verified domain.
-6. Confirm a staging environment has the same theme, cache, security, SMTP, and PHP extensions as production.
-7. Disable automatic production activation during testing.
+1. Take a fresh full database backup.
+2. Archive the active `foundation-project-calculator` plugin folder.
+3. Record current plugin version, blueprint version, journey health, screen/field/price counts and email-settings fingerprint.
+4. Record current unfinished/completed enquiry counts.
+5. Keep the previous plugin installer/snapshot as rollback material.
+6. Confirm the site's privacy policy URL and verified SMTP sender.
 
-## Staging installation
+## Install
 
-1. Upload the production ZIP in **Plugins > Add New > Upload Plugin**.
-2. Activate Foundation Project Calculator.
-3. Open **Foundation > Project Calculator**.
-4. For an existing site, select **Back up and apply journey** in the migration panel.
-5. Check that Overview reports the Inkfire 2026 journey and connected routes.
-6. Open Prices and verify a sample from each category against `MALI_PRICING_MAPPING.md`.
-7. Configure the real staging recipient and a sender verified by the staging SMTP provider.
-8. Confirm the privacy-policy URL.
-9. Add or verify `[foundation_form]` on the calculator page.
-10. Purge WordPress, server, CDN, and browser caches.
+1. Install the approved `foundation-project-calculator-1.6.1-production.zip` in the existing plugin folder.
+2. Confirm WordPress reports **1.6.1**.
+3. Do **not** reapply Mali's journey merely because the plugin version changed.
+4. Confirm the existing 28-screen / 49-field / 38-price / 27-route-target blueprint, or the site's supported customised equivalent, remains intact.
+5. Confirm email recipients/sender and current enquiries survived the replacement.
 
-## Required staging acceptance tests
+## Turnstile setup
 
-### Customer journey
+Turnstile integration ships **disabled until real keys are provided**.
 
-- Open from the built-in button.
-- Open from any custom site trigger.
-- Close with the close button and Escape.
-- Navigate with keyboard only.
-- Verify focus returns to the launching control.
-- Complete the Web small-site example: 5 pages should produce £2,750 one-off before add-ons.
-- Complete the Web full example used by automated smoke testing: 5-page small site, WooCommerce, hosting plus plugins, 26–50 alt texts, testing, and setup should produce £4,260 one-off plus £45/month.
-- Complete a range example, such as 12–16 static social posts.
-- Complete a tailored example, such as Cyber Essentials or 76+ alt texts.
-- Combine at least two main routes and confirm totals add correctly.
-- Verify mobile layout at approximately 375 px wide.
-- Test current Chrome, Safari, Firefox, and Edge where available.
+For production:
 
-### Save and resume
+1. configure the real Inkfire site key and secret under **Advanced**;
+2. enable Turnstile;
+3. save;
+4. verify the Overview health row reports spam protection configured;
+5. perform a real magic-link send and final submission before relying on it.
 
-- Save an estimate with a real inbox.
-- Confirm the resume URL uses the exact current HTTPS host.
-- Open it in a private browser session.
-- Confirm answers and the appropriate visible screen are restored.
-- Confirm files are not claimed to be retained.
-- Repeat requests quickly enough to confirm rate limiting returns a friendly message rather than a fatal error.
+If Turnstile is intentionally left off during a staged rollout, nonce, honeypot, bounded rate limits, minimum-interaction checks and duplicate protection remain active.
 
-### Submission and email
+## Mandatory cache purge
 
-- Submit a complete estimate.
-- Confirm the success receipt and reference.
-- Confirm exactly one private inbox record exists.
-- Confirm the team email arrives.
-- Confirm the customer copy arrives when enabled.
-- Confirm Reply-To points to the customer on the team email.
-- Inspect PDF and JSON reports.
-- Confirm the ZIP package when `ZipArchive` is installed.
-- Temporarily route mail to a controlled failure or disable SMTP, then confirm the enquiry still appears locally with a failed mail status.
-- Submit the same screen twice and confirm duplicate protection does not create a second record.
+Purge all three known layers:
 
-### Admin
+1. NitroPack;
+2. WordPress object cache;
+3. host LiteSpeed cache.
 
-- Edit one non-live staging price and confirm the public estimate changes.
-- Restore the original price.
-- Search prices by service name.
-- Review the read-only journey map.
-- Export configuration and confirm recipient/sender addresses are absent.
-- Restore a journey backup on staging, then reapply the current blueprint.
-- Confirm only administrators can access the dashboard and protected REST endpoints.
+Then inspect a **normal cacheable public request** and confirm the returned assets reference `ver=1.6.1`. Do not validate only through a cache-bypass URL.
 
-### Compatibility and operations
+## Live acceptance order
 
-- Check browser developer tools for JavaScript errors.
-- Check the WordPress debug log and PHP error log.
-- Verify no mixed-content requests.
-- Verify the active cache does not serve an older form configuration after a price change.
-- Check the security plugin does not block legitimate `admin-ajax.php` requests.
-- Confirm the host accepts the configured total attachment size.
-- Run one test with object cache enabled and one after purge.
+### Gate A: immediate public launch
 
-## Production release
+At mobile and desktop sizes, load a fresh signed-out homepage and click the real `#foundation-launch-btn` as soon as it becomes clickable.
 
-Proceed only after the staging evidence is signed off.
+Pass conditions:
 
-1. Put the calculator page into a controlled maintenance window if traffic warrants it.
-2. Back up the live database and plugin folder again.
-3. Install and activate the 1.4.0 production ZIP.
-4. Apply the journey migration if shown.
-5. Verify prices and email settings were preserved.
-6. Purge all cache layers.
-7. Complete one live internal test using a non-customer email address.
-8. Confirm the enquiry record and both email statuses.
-9. Remove the test enquiry according to Inkfire's data process.
-10. Monitor PHP, SMTP, and calculator failure logs during the first working day.
+- first click is intercepted;
+- configuration request starts;
+- no `#foundation-launch-btn` fragment is left behind;
+- overlay parent is `body`;
+- modal is visibly painted above Elementor;
+- no calculator console error.
+
+### Gate B: premium intro / mobile responsive experience
+
+Verify:
+
+- desktop keeps the split team-image/project-brief composition;
+- light-mode controls use white text on green glass;
+- mobile keeps a compact branded image hero rather than dropping the image;
+- intro content fits at 320–390 CSS px without horizontal scrolling;
+- Save is not offered before there is anything to save.
+
+### Gate C: early soft capture + magic link
+
+1. Select **Build my estimate**.
+2. Confirm name/email capture appears and **Continue without saving** is clearly available.
+3. Submit a controlled internal name/email.
+4. Confirm the customer proceeds immediately without being forced to open email.
+5. Confirm exactly one unfinished private project brief appears in Admin → Enquiries.
+6. Confirm the resume email arrives.
+7. Open the link in a private browser/device.
+8. Confirm the exact saved screen/answers restore and the admin brief becomes **Verified email**.
+9. Confirm the visible resume token is removed from the URL after capture.
+
+### Gate D: anonymous recovery
+
+Using a fresh browser without entering email:
+
+1. Skip capture.
+2. answer a few questions;
+3. close through the recovery panel;
+4. reopen;
+5. confirm **Continue where I left off** restores journey state;
+6. inspect browser storage and confirm no name/email/contact PII is present.
+
+### Gate E: known quote + retention flow
+
+Run the known Web route:
+
+- small website, five pages;
+- WooCommerce;
+- Hosting + plugins;
+- 26–50 alt texts;
+- accessibility testing;
+- accessibility setup.
+
+Expected: **£4,260 one-off + £45/month**, excluding VAT.
+
+Confirm:
+
+- live estimate updates;
+- route-completion screen appears;
+- customer can add another service or review;
+- final contact screen reuses early name/email rather than asking again.
+
+### Gate F: real submission / email / reports
+
+Submit one controlled internal enquiry and verify:
+
+- exactly one completed private enquiry;
+- unfinished magic-link brief is marked converted/removed from normal unfinished queue;
+- team notification accepted/delivered;
+- customer confirmation accepted/delivered if enabled;
+- Reply-To correct;
+- PDF/JSON/ZIP filenames have real extensions;
+- duplicate replay returns the same reference and creates no second enquiry;
+- test data can be deleted cleanly.
+
+### Gate G: Turnstile / abuse
+
+With real production Turnstile enabled:
+
+- magic-link send succeeds for a normal human flow;
+- final submission succeeds;
+- wrong/expired challenge is rejected with a recoverable message;
+- legitimate calculator `admin-ajax.php` requests are not blocked by AIOWPS or hosting security;
+- resend cooldown/rate limits do not false-positive during an ordinary journey.
+
+### Gate H: admin
+
+Verify:
+
+- Overview funnel renders;
+- unfinished brief appears with captured/verified state, progress and quote;
+- completed enquiry remains available;
+- stale legacy failure text is not shown as unresolved;
+- Journey Editor Add/Duplicate/reorder/AJAX save still work;
+- price search and journey health work;
+- configuration export contains no recipient/sender/Turnstile secret.
+
+### Gate I: accessibility/browser
+
+Run keyboard and screen-reader checks on the real page and launch in current Chrome/Chromium, Safari, Edge and Firefox where available. Verify focus trap/return, error announcements, 320 CSS px reflow, reduced motion and the mobile estimate drawer.
+
+## Gate G: 1.6.1 admin management
+
+After the public gates pass:
+
+1. Open **Foundation → Project Calculator → Enquiries**.
+2. Confirm the unfinished and completed cards have normal internal padding.
+3. On a controlled unfinished brief, change Workflow between In progress/Follow up/Waiting and confirm it saves without a reload.
+4. Open the brief, correct a test email, confirm the address becomes unverified, then use **Resend magic link** and verify only the new link works.
+5. Confirm **Delete record** requires confirmation. Use a disposable test lead only.
+6. Mark a test record Archived and confirm **Clear archived** removes archived records only.
+7. Open **Customer journey**, expand a card and confirm **Minimise card** collapses it.
+8. Under Opening slide, click the image thumbnail or **Choose image**, select an image through the standard WordPress Media Library and confirm the preview updates without a page reload. Repeat the control check for Contact and Success.
+9. Remove a temporary image and confirm the public calculator does not reserve a blank visual panel.
 
 ## Rollback
 
-1. Deactivate version 1.4.0.
-2. Restore the previous plugin directory.
-3. Restore the database backup only when the previous code cannot safely read the new options or when the journey migration itself must be reversed.
-4. When the plugin remains active and only the journey needs reversing, use **Customer journey > Restore backup** instead of a database rollback.
-5. Purge all cache layers.
-6. Test the calculator page and one internal submission.
+If a gate fails:
 
-New enquiry records use a private post type and can remain in the database during a code rollback, but verify the previous version does not expose or mishandle them.
+1. preserve evidence before changing state;
+2. restore the pre-1.6.1 plugin folder;
+3. restore database/options only if stored configuration was actually mutated/corrupted;
+4. purge NitroPack, object cache and LiteSpeed;
+5. verify a normal public request serves the rollback version.
 
-## GitHub updates
-
-The updater points to:
-
-```text
-Inkfire-limited/foundation-project-calculator
-```
-
-Publish tagged releases with an installable ZIP containing the stable `foundation-project-calculator` root folder. For a private repository, provide a token through the documented constant or filter and never store it in plugin options or the release archive.
-
-## Host-dependent gates
-
-The local QA environment could not prove:
-
-- real WordPress activation on Inkfire staging
-- live SMTP delivery and sender-domain authentication
-- PHP 7.4 execution, although shipped runtime code was scanned for common PHP 8-only syntax
-- the real `ZipArchive` path, because that extension was absent locally
-- conflicts with the production theme, cache, firewall, object cache, or other plugins
-
-These are deployment gates, not optional polish.
+Because 1.6.1 has **no schema migration**, a code rollback does not inherently require a database rollback. Retain the database snapshot for configuration/data recovery if needed.

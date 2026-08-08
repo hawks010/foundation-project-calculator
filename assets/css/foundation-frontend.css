@@ -1,6 +1,6 @@
 /**
  * Foundation Project Calculator frontend
- * Version 1.4.0
+ * Version 1.6.1
  *
  * The public experience is deliberately independent of the active WordPress
  * theme. Everything is scoped to the calculator wrapper/overlay so a theme's
@@ -525,6 +525,42 @@ body.foundation-modal-open {
 	color: var(--fpc-muted) !important;
 	font-size: 0.82rem !important;
 	margin-top: 12px !important;
+}
+
+.foundation-restoring {
+	align-self: center;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	margin: auto;
+	max-width: 680px;
+	min-height: 360px;
+	text-align: center;
+}
+
+.foundation-restoring .foundation-kicker,
+.foundation-restoring h1,
+.foundation-restoring p {
+	margin-left: auto;
+	margin-right: auto;
+}
+
+.foundation-restoring p {
+	color: var(--fpc-muted);
+	font-size: clamp(1rem, 1.8vw, 1.12rem);
+	margin-bottom: 0;
+	margin-top: 16px;
+	max-width: 560px;
+}
+
+.foundation-restoring-indicator {
+	border: 4px solid var(--fpc-accent-soft);
+	border-radius: 999px;
+	border-top-color: var(--fpc-accent-dark);
+	display: block;
+	height: 42px;
+	margin: 28px auto 0;
+	width: 42px;
 }
 
 .foundation-step,
@@ -1256,9 +1292,17 @@ body.foundation-modal-open {
 		animation: foundation-modal-in 180ms ease-out both;
 	}
 
+	.foundation-restoring-indicator {
+		animation: foundation-restoring-spin 800ms linear infinite;
+	}
+
 	@keyframes foundation-modal-in {
 		from { opacity: 0; transform: translateY(12px) scale(0.99); }
 		to { opacity: 1; transform: translateY(0) scale(1); }
+	}
+
+	@keyframes foundation-restoring-spin {
+		to { transform: rotate(360deg); }
 	}
 }
 
@@ -1507,4 +1551,2073 @@ body.foundation-modal-open {
 	margin: 12px auto 0;
 	color: var(--fpc-muted);
 	font-size: 14px;
+}
+
+/* ==========================================================================
+   Inkfire visual restoration layer — 1.4.3
+   --------------------------------------------------------------------------
+   The 1.3.5 public calculator used Inkfire's dark glass / gradient language.
+   The 1.4.x functionality is retained, but its current component classes are
+   restyled here so pricing, routes, save/resume and security logic do not need
+   to be rolled back with the old renderer.
+   ========================================================================== */
+
+:root {
+	--fpc-action-gradient:
+		radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.16), transparent 58%),
+		radial-gradient(circle at 100% 0%, rgba(0, 0, 0, 0.18), transparent 64%),
+		linear-gradient(135deg, #0e4f4d 0%, #155c5c 52%, #087466 100%);
+	--fpc-action-gradient-hover:
+		radial-gradient(circle at 0% 0%, rgba(255, 255, 255, 0.14), transparent 55%),
+		radial-gradient(circle at 100% 0%, rgba(0, 0, 0, 0.14), transparent 65%),
+		linear-gradient(135deg, #7f3510 0%, #a64610 52%, #b85212 100%);
+	--fpc-action-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.46),
+		inset 0 -1px 0 rgba(0, 0, 0, 0.36),
+		0 9px 24px rgba(0, 0, 0, 0.26);
+}
+
+.foundation-overlay[data-theme="dark"] {
+	--fpc-ink: #ffffff;
+	--fpc-ink-soft: #edf0f6;
+	--fpc-muted: #c8ced9;
+	--fpc-surface: rgba(12, 18, 32, 0.96);
+	--fpc-surface-soft: rgba(22, 29, 47, 0.86);
+	--fpc-border: rgba(196, 205, 220, 0.30);
+	--fpc-border-strong: rgba(216, 223, 233, 0.48);
+	--fpc-accent: #62e3c9;
+	--fpc-accent-dark: #0b725f;
+	--fpc-accent-soft: rgba(35, 198, 166, 0.15);
+	--fpc-peach: #fbccbf;
+	--fpc-peach-soft: rgba(251, 204, 191, 0.12);
+	--fpc-danger: #ff9b9b;
+	--fpc-danger-soft: rgba(129, 28, 28, 0.34);
+	--fpc-warning: #ffd37a;
+	--fpc-warning-soft: rgba(119, 77, 0, 0.34);
+	--fpc-success: #7ae7bd;
+	--fpc-shadow:
+		inset 0 0 18px rgba(0, 0, 0, 0.34),
+		inset 0 1px 0 rgba(255, 255, 255, 0.11),
+		inset 0 -1px 0 rgba(0, 0, 0, 0.46),
+		0 32px 90px rgba(0, 0, 0, 0.52);
+	--fpc-focus: 0 0 0 3px #111729, 0 0 0 6px #7ff3dc;
+	color-scheme: dark;
+}
+
+.foundation-overlay[data-theme="light"] {
+	--fpc-ink: #111827;
+	--fpc-ink-soft: #303747;
+	--fpc-muted: #4b5565;
+	--fpc-surface: #ffffff;
+	--fpc-surface-soft: rgba(247, 248, 251, 0.94);
+	--fpc-border: rgba(148, 163, 184, 0.35);
+	--fpc-border-strong: #8c96a7;
+	--fpc-accent: #087466;
+	--fpc-accent-dark: #075e53;
+	--fpc-accent-soft: #e4f6f1;
+	--fpc-peach: #e8a995;
+	--fpc-peach-soft: #fff1ec;
+	--fpc-danger: #9b1c1c;
+	--fpc-danger-soft: #fff0f0;
+	--fpc-warning: #714900;
+	--fpc-warning-soft: #fff7df;
+	--fpc-success: #0d6241;
+	--fpc-shadow:
+		inset 0 6px 18px rgba(15, 23, 42, 0.045),
+		inset 0 -6px 18px rgba(15, 23, 42, 0.035),
+		inset 0 0 0.5px rgba(255, 255, 255, 0.72),
+		0 20px 60px rgba(15, 23, 42, 0.20);
+	--fpc-focus: 0 0 0 3px #ffffff, 0 0 0 6px #006c5d;
+	color-scheme: light;
+}
+
+.foundation-btn-primary,
+.foundation-launch-btn,
+.foundation-primary-button,
+.foundation-load-error button {
+	background-color: #0e4f4d;
+	background-image: var(--fpc-action-gradient);
+	border: 1px solid rgba(255, 255, 255, 0.36);
+	box-shadow: var(--fpc-action-shadow);
+	color: #ffffff;
+	font-weight: 800;
+	min-height: 48px;
+}
+
+.foundation-btn-primary:hover,
+.foundation-launch-btn:hover,
+.foundation-primary-button:hover,
+.foundation-load-error button:hover {
+	background-color: #8c3a0f;
+	background-image: var(--fpc-action-gradient-hover);
+	border-color: rgba(255, 255, 255, 0.48);
+	box-shadow:
+		inset 0 1px 0 rgba(255, 255, 255, 0.44),
+		inset 0 -1px 0 rgba(0, 0, 0, 0.38),
+		0 12px 30px rgba(116, 45, 7, 0.38);
+	color: #ffffff;
+	transform: translateY(-2px);
+}
+
+.foundation-overlay {
+	background:
+		radial-gradient(circle at 14% 8%, rgba(251, 204, 191, 0.08), transparent 32%),
+		radial-gradient(circle at 86% 10%, rgba(1, 174, 147, 0.08), transparent 34%),
+		rgba(4, 7, 17, 0.42);
+	padding: clamp(8px, 2vw, 28px);
+	transition: opacity 220ms ease;
+}
+
+@supports ((-webkit-backdrop-filter: blur(12px)) or (backdrop-filter: blur(12px))) {
+	.foundation-overlay {
+		-webkit-backdrop-filter: blur(14px) saturate(118%);
+		backdrop-filter: blur(14px) saturate(118%);
+	}
+}
+
+.foundation-modal {
+	border-radius: 32px;
+	max-height: min(940px, 92dvh);
+	min-height: min(700px, 88dvh);
+	width: min(1560px, 95vw);
+}
+
+.foundation-overlay[data-theme="dark"] .foundation-modal {
+	background:
+		radial-gradient(circle at 0% 0%, rgba(251, 204, 191, 0.19), transparent 55%),
+		radial-gradient(circle at 100% 0%, rgba(30, 97, 103, 0.28), transparent 55%),
+		radial-gradient(120% 140% at 50% 120%, rgba(255, 255, 255, 0.045), transparent 70%),
+		#1c1d2d;
+	border: 1px solid rgba(255, 255, 255, 0.13);
+	box-shadow: var(--fpc-shadow);
+}
+
+.foundation-overlay[data-theme="light"] .foundation-modal {
+	background:
+		linear-gradient(to bottom, rgba(255, 255, 255, 0.60) 0%, rgba(255, 255, 255, 0) 23%),
+		radial-gradient(circle at 0% 0%, rgba(223, 21, 124, 0.05), transparent 60%),
+		radial-gradient(circle at 100% 0%, rgba(23, 154, 214, 0.06), transparent 60%),
+		radial-gradient(circle at 50% 110%, rgba(251, 204, 191, 0.16), rgba(255, 255, 255, 0.92)),
+		rgba(252, 252, 255, 0.97);
+	border: 1px solid rgba(148, 163, 184, 0.34);
+	box-shadow: var(--fpc-shadow);
+}
+
+.foundation-modal-header,
+.foundation-progress-wrap,
+.foundation-modal-footer {
+	-webkit-backdrop-filter: blur(16px);
+	backdrop-filter: blur(16px);
+	border-color: var(--fpc-border);
+}
+
+.foundation-overlay[data-theme="dark"] .foundation-modal-header,
+.foundation-overlay[data-theme="dark"] .foundation-progress-wrap,
+.foundation-overlay[data-theme="dark"] .foundation-modal-footer {
+	background: rgba(10, 14, 27, 0.76);
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+
+.foundation-overlay[data-theme="light"] .foundation-modal-header,
+.foundation-overlay[data-theme="light"] .foundation-progress-wrap,
+.foundation-overlay[data-theme="light"] .foundation-modal-footer {
+	background: rgba(255, 255, 255, 0.56);
+}
+
+.foundation-modal-header {
+	min-height: 76px;
+	padding: 13px clamp(18px, 2.6vw, 34px);
+}
+
+.foundation-modal-logo {
+	height: 48px;
+	max-width: 150px;
+}
+
+.foundation-brand span {
+	color: var(--fpc-muted);
+}
+
+.foundation-brand strong {
+	color: var(--fpc-ink);
+	font-weight: 820;
+}
+
+.foundation-header-actions {
+	gap: 9px;
+}
+
+.foundation-header-button,
+.foundation-close-button,
+.foundation-save-close,
+.foundation-secondary-button {
+	background: transparent;
+	border: 2px solid var(--fpc-accent);
+	box-shadow: none;
+	color: var(--fpc-accent);
+	font-weight: 780;
+	min-height: 44px;
+	transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+}
+
+.foundation-header-button {
+	align-items: center;
+	display: inline-flex;
+	gap: 7px;
+	padding: 8px 16px;
+}
+
+.foundation-header-button[hidden] {
+	display: none !important;
+}
+
+.foundation-close-button,
+.foundation-save-close {
+	background: transparent;
+	border: 2px solid var(--fpc-accent);
+	color: var(--fpc-accent);
+	height: 44px;
+	width: 44px;
+}
+
+.foundation-header-button:hover,
+.foundation-close-button:hover,
+.foundation-save-close:hover,
+.foundation-secondary-button:hover {
+	background: var(--fpc-accent-soft);
+	border-color: var(--fpc-accent);
+	color: var(--fpc-accent);
+	transform: translateY(-1px);
+}
+
+.foundation-overlay[data-theme="dark"] .foundation-header-button,
+.foundation-overlay[data-theme="dark"] .foundation-close-button,
+.foundation-overlay[data-theme="dark"] .foundation-save-close,
+.foundation-overlay[data-theme="dark"] .foundation-secondary-button {
+	border-color: rgba(255, 255, 255, 0.78);
+	color: #ffffff;
+}
+
+.foundation-overlay[data-theme="dark"] .foundation-header-button:hover,
+.foundation-overlay[data-theme="dark"] .foundation-close-button:hover,
+.foundation-overlay[data-theme="dark"] .foundation-save-close:hover,
+.foundation-overlay[data-theme="dark"] .foundation-secondary-button:hover {
+	background: rgba(255, 255, 255, 0.10);
+	border-color: #ffffff;
+	color: #ffffff;
+}
+
+.foundation-theme-icon {
+	align-items: center;
+	display: inline-flex;
+	font-size: 1rem;
+	justify-content: center;
+	line-height: 1;
+	width: 18px;
+}
+
+.foundation-progress-wrap {
+	padding: 9px clamp(20px, 3vw, 40px) 11px;
+}
+
+.foundation-progress-meta {
+	color: var(--fpc-muted);
+	font-size: 0.76rem;
+}
+
+.foundation-progress-track {
+	background: var(--fpc-border);
+	height: 5px;
+}
+
+.foundation-progress-track span {
+	background: linear-gradient(90deg, #0e4f4d 0%, #087466 56%, #e08b72 100%);
+}
+
+.foundation-message {
+	background: var(--fpc-danger-soft);
+	border-color: color-mix(in srgb, var(--fpc-danger) 55%, transparent);
+	color: var(--fpc-danger);
+	font-size: 0.92rem;
+	padding: 12px clamp(20px, 3vw, 40px);
+}
+
+.foundation-modal-body {
+	background: transparent;
+	grid-template-columns: minmax(0, 1fr) minmax(280px, 338px);
+}
+
+.foundation-canvas {
+	background: transparent;
+	padding: clamp(28px, 3.4vw, 52px);
+	scroll-padding-block: 96px;
+}
+
+.foundation-live-summary {
+	background:
+		radial-gradient(circle at 100% 0%, rgba(251, 204, 191, 0.08), transparent 38%),
+		rgba(8, 12, 24, 0.76);
+	border-left: 1px solid rgba(255, 255, 255, 0.13);
+	color: #ffffff;
+	padding: clamp(24px, 2.6vw, 34px);
+}
+
+.foundation-overlay[data-theme="light"] .foundation-live-summary {
+	background:
+		radial-gradient(circle at 100% 0%, rgba(251, 204, 191, 0.18), transparent 42%),
+		linear-gradient(160deg, #18212d 0%, #0f1920 100%);
+	border-left-color: rgba(15, 23, 42, 0.18);
+}
+
+.foundation-kicker {
+	color: var(--fpc-peach);
+	font-weight: 850;
+	letter-spacing: 0.14em;
+}
+
+.foundation-overlay[data-theme="light"] .foundation-kicker {
+	color: #8c3e12;
+}
+
+.foundation-canvas h1 {
+	color: var(--fpc-ink);
+	font-size: clamp(2rem, 3.2vw, 3.2rem);
+	font-weight: 830;
+	letter-spacing: -0.035em;
+	line-height: 1.03;
+}
+
+.foundation-canvas h2,
+.foundation-canvas h3,
+.foundation-save-dialog h2,
+.foundation-load-error strong,
+.foundation-field-heading legend,
+.foundation-field-heading > label {
+	color: var(--fpc-ink);
+}
+
+.foundation-step-intro,
+.foundation-intro-copy > p,
+.foundation-contact > p,
+.foundation-success > p,
+.foundation-description,
+.foundation-field-helper,
+.foundation-file-summary,
+.foundation-small-print,
+.foundation-success-email-note {
+	color: var(--fpc-muted) !important;
+}
+
+.foundation-intro {
+	gap: clamp(28px, 4vw, 58px);
+	grid-template-columns: minmax(330px, 0.92fr) minmax(380px, 1.08fr);
+	max-width: 1240px;
+}
+
+.foundation-intro-image {
+	background-color: #111729;
+	border: 1px solid rgba(255, 255, 255, 0.15);
+	border-radius: 24px;
+	box-shadow: 0 18px 46px rgba(0, 0, 0, 0.28);
+	min-height: 480px;
+	overflow: hidden;
+}
+
+.foundation-intro-image::after {
+	background:
+		linear-gradient(180deg, rgba(17, 23, 41, 0.04) 32%, rgba(10, 13, 26, 0.68) 100%),
+		linear-gradient(120deg, rgba(251, 204, 191, 0.08), transparent 45%);
+}
+
+.foundation-intro-points li {
+	color: var(--fpc-ink-soft);
+}
+
+.foundation-intro-points li::before {
+	background: var(--fpc-accent-soft);
+	border: 1px solid color-mix(in srgb, var(--fpc-accent) 54%, transparent);
+	color: var(--fpc-accent);
+}
+
+.foundation-intro blockquote {
+	background: var(--fpc-peach-soft);
+	border-left-color: var(--fpc-peach);
+}
+
+.foundation-intro blockquote p {
+	color: var(--fpc-ink-soft);
+}
+
+.foundation-intro blockquote cite {
+	color: var(--fpc-muted);
+}
+
+.foundation-step,
+.foundation-review,
+.foundation-contact,
+.foundation-success {
+	max-width: 980px;
+}
+
+.foundation-fields {
+	gap: 28px;
+	margin-top: 34px;
+}
+
+.foundation-field,
+.foundation-section-title,
+.foundation-review-list,
+.foundation-contact-grid label,
+.foundation-privacy-check,
+.foundation-total-card,
+.foundation-manual-review,
+.foundation-estimate-note {
+	scroll-margin-block: 104px;
+}
+
+.foundation-required {
+	background: var(--fpc-peach-soft);
+	border: 1px solid color-mix(in srgb, var(--fpc-peach) 50%, transparent);
+	color: var(--fpc-peach);
+}
+
+.foundation-overlay[data-theme="light"] .foundation-required {
+	color: #7a3424;
+}
+
+.foundation-option-grid {
+	gap: 14px;
+}
+
+.foundation-option-card,
+.foundation-toggle-choice {
+	background: var(--fpc-surface);
+	border-color: var(--fpc-border-strong);
+	color: var(--fpc-ink);
+}
+
+.foundation-overlay[data-theme="dark"] .foundation-option-card,
+.foundation-overlay[data-theme="dark"] .foundation-toggle-choice {
+	background:
+		linear-gradient(145deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.008)),
+		rgba(12, 18, 32, 0.86);
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.24);
+}
+
+.foundation-option-card {
+	border-radius: 16px;
+	min-height: 90px;
+	padding: 17px;
+}
+
+.foundation-option-card:hover,
+.foundation-toggle-choice:hover {
+	background: color-mix(in srgb, var(--fpc-surface) 90%, var(--fpc-accent) 10%);
+	border-color: var(--fpc-accent);
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
+	transform: translateY(-2px);
+}
+
+.foundation-option-card.is-selected {
+	background: var(--fpc-accent-soft);
+	border-color: var(--fpc-accent);
+	box-shadow: 0 0 0 1px var(--fpc-accent), 0 12px 30px rgba(0, 0, 0, 0.20);
+}
+
+.foundation-option-check {
+	background: var(--fpc-surface);
+	border-color: var(--fpc-border-strong);
+	height: 25px;
+	width: 25px;
+}
+
+.foundation-option-card.is-selected .foundation-option-check {
+	background: #0b725f;
+	border-color: #7ff3dc;
+	color: #ffffff;
+}
+
+.foundation-option-copy strong {
+	color: var(--fpc-ink);
+	font-size: 1rem;
+}
+
+.foundation-option-copy small {
+	color: var(--fpc-muted);
+}
+
+.foundation-toggle-choice {
+	min-height: 48px;
+}
+
+.foundation-toggle-choice.is-selected {
+	background: #0b725f;
+	border-color: #7ff3dc;
+	color: #ffffff;
+}
+
+.foundation-overlay[data-theme="light"] .foundation-toggle-choice.is-selected {
+	border-color: #075e53;
+}
+
+.foundation-field input[type="text"],
+.foundation-field input[type="email"],
+.foundation-field input[type="url"],
+.foundation-field input[type="number"],
+.foundation-field input[type="range"],
+.foundation-field input[type="file"],
+.foundation-field textarea,
+.foundation-contact input,
+.foundation-contact textarea,
+.foundation-save-dialog input {
+	background: var(--fpc-surface);
+	border-color: var(--fpc-border-strong);
+	border-radius: 14px;
+	color: var(--fpc-ink);
+	min-height: 50px;
+}
+
+.foundation-overlay[data-theme="dark"] .foundation-field input[type="text"],
+.foundation-overlay[data-theme="dark"] .foundation-field input[type="email"],
+.foundation-overlay[data-theme="dark"] .foundation-field input[type="url"],
+.foundation-overlay[data-theme="dark"] .foundation-field input[type="number"],
+.foundation-overlay[data-theme="dark"] .foundation-field input[type="file"],
+.foundation-overlay[data-theme="dark"] .foundation-field textarea,
+.foundation-overlay[data-theme="dark"] .foundation-contact input,
+.foundation-overlay[data-theme="dark"] .foundation-contact textarea,
+.foundation-overlay[data-theme="dark"] .foundation-save-dialog input {
+	box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025), 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
+.foundation-field input::placeholder,
+.foundation-field textarea::placeholder,
+.foundation-contact input::placeholder,
+.foundation-contact textarea::placeholder {
+	color: color-mix(in srgb, var(--fpc-muted) 82%, transparent);
+}
+
+.foundation-field input:focus,
+.foundation-field textarea:focus,
+.foundation-contact input:focus,
+.foundation-contact textarea:focus,
+.foundation-save-dialog input:focus,
+.foundation-option-card:has(input:focus-visible),
+.foundation-toggle-choice:has(input:focus-visible),
+.foundation-header-button:focus-visible,
+.foundation-close-button:focus-visible,
+.foundation-primary-button:focus-visible,
+.foundation-secondary-button:focus-visible,
+.foundation-save-close:focus-visible,
+.foundation-load-error button:focus-visible,
+.foundation-btn-primary:focus-visible,
+.foundation-launch-btn:focus-visible,
+.foundation-privacy-check input:focus-visible {
+	box-shadow: var(--fpc-focus);
+	outline: 0;
+}
+
+.foundation-field-error {
+	align-items: flex-start;
+	background: var(--fpc-danger-soft);
+	border: 1px solid color-mix(in srgb, var(--fpc-danger) 62%, transparent);
+	border-radius: 12px;
+	color: var(--fpc-danger);
+	display: flex;
+	font-size: 0.88rem;
+	font-weight: 740;
+	gap: 8px;
+	line-height: 1.45;
+	margin: 12px 0 0;
+	padding: 10px 12px;
+}
+
+.foundation-field-error::before {
+	content: "!";
+	align-items: center;
+	border: 1px solid currentColor;
+	border-radius: 50%;
+	display: inline-flex;
+	flex: 0 0 auto;
+	font-size: 0.72rem;
+	height: 20px;
+	justify-content: center;
+	margin-top: 1px;
+	width: 20px;
+}
+
+.foundation-number-input span {
+	background: var(--fpc-surface-soft);
+	border-color: var(--fpc-border-strong);
+	color: var(--fpc-muted);
+}
+
+.foundation-number-field output {
+	color: var(--fpc-accent);
+}
+
+.foundation-divider {
+	border-color: var(--fpc-border);
+}
+
+.foundation-total-card,
+.foundation-quote-mode-note {
+	background:
+		radial-gradient(circle at 100% 0%, rgba(251, 204, 191, 0.10), transparent 42%),
+		rgba(8, 12, 24, 0.84);
+	border: 1px solid rgba(255, 255, 255, 0.14);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+.foundation-total-card span,
+.foundation-quote-mode-note span,
+.foundation-total-card small {
+	color: #d7dce5;
+}
+
+.foundation-total-card strong,
+.foundation-quote-mode-note strong {
+	color: #fbccbf;
+}
+
+.foundation-total-card.is-empty,
+.foundation-quote-mode-note {
+	background: rgba(34, 43, 59, 0.88);
+}
+
+.foundation-review-list {
+	background: var(--fpc-surface);
+	border-color: var(--fpc-border);
+	box-shadow: 0 12px 32px rgba(0, 0, 0, 0.10);
+}
+
+.foundation-review-list > div {
+	border-color: var(--fpc-border);
+}
+
+.foundation-review-list span {
+	color: var(--fpc-ink-soft);
+}
+
+.foundation-review-list strong {
+	color: var(--fpc-ink);
+}
+
+.foundation-manual-review {
+	background: var(--fpc-warning-soft);
+	border-color: color-mix(in srgb, var(--fpc-warning) 58%, transparent);
+}
+
+.foundation-manual-review > div + div {
+	border-color: color-mix(in srgb, var(--fpc-warning) 44%, transparent);
+}
+
+.foundation-manual-review strong,
+.foundation-manual-review p {
+	color: var(--fpc-warning);
+}
+
+.foundation-estimate-note {
+	background: var(--fpc-surface-soft);
+	border-left-color: var(--fpc-accent);
+}
+
+.foundation-estimate-note p {
+	color: var(--fpc-muted);
+}
+
+.foundation-live-heading {
+	border-color: rgba(255, 255, 255, 0.18);
+}
+
+.foundation-live-heading small,
+.foundation-live-total span,
+.foundation-live-tailored span,
+.foundation-live-summary li span,
+.foundation-live-manual span,
+.foundation-live-note,
+.foundation-live-empty {
+	color: #d1d6df;
+}
+
+.foundation-live-total strong,
+.foundation-live-tailored strong,
+.foundation-live-manual strong {
+	color: #fbccbf;
+}
+
+.foundation-live-total,
+.foundation-live-tailored {
+	background: rgba(255, 255, 255, 0.07);
+	border-color: rgba(255, 255, 255, 0.16);
+}
+
+.foundation-contact-grid label > span,
+.foundation-save-dialog label > span {
+	color: var(--fpc-ink-soft);
+}
+
+.foundation-contact-grid b,
+.foundation-save-dialog b {
+	color: var(--fpc-danger);
+}
+
+.foundation-contact-grid em,
+.foundation-save-dialog em {
+	color: var(--fpc-muted);
+}
+
+.foundation-privacy-check {
+	background: var(--fpc-surface-soft);
+	border: 1px solid var(--fpc-border);
+	color: var(--fpc-ink-soft);
+}
+
+.foundation-privacy-check input {
+	accent-color: #0b725f;
+	height: 24px;
+	width: 24px;
+}
+
+.foundation-privacy-check a {
+	color: var(--fpc-accent);
+	text-decoration: underline;
+	text-decoration-thickness: 0.1em;
+	text-underline-offset: 0.16em;
+}
+
+.foundation-submit-status,
+.foundation-save-status {
+	background: var(--fpc-accent-soft);
+	border: 1px solid color-mix(in srgb, var(--fpc-accent) 45%, transparent);
+	color: var(--fpc-ink);
+}
+
+.foundation-success-mark {
+	background: var(--fpc-accent-soft);
+	border: 1px solid color-mix(in srgb, var(--fpc-accent) 52%, transparent);
+	color: var(--fpc-accent);
+}
+
+.foundation-success-reference {
+	background: var(--fpc-surface-soft);
+	border-color: var(--fpc-border);
+}
+
+.foundation-success-reference span {
+	color: var(--fpc-muted);
+}
+
+.foundation-success-reference strong {
+	color: var(--fpc-ink);
+}
+
+.foundation-save-panel {
+	background: rgba(2, 6, 18, 0.78);
+	-webkit-backdrop-filter: blur(12px);
+	backdrop-filter: blur(12px);
+}
+
+.foundation-save-dialog,
+.foundation-load-error {
+	background:
+		radial-gradient(circle at 100% 0%, var(--fpc-peach-soft), transparent 40%),
+		var(--fpc-surface);
+	border: 1px solid var(--fpc-border);
+	color: var(--fpc-ink);
+}
+
+.foundation-save-dialog > p,
+.foundation-load-error span {
+	color: var(--fpc-muted);
+}
+
+.foundation-restoring-indicator {
+	border-color: var(--fpc-accent-soft);
+	border-top-color: var(--fpc-accent);
+}
+
+.foundation-empty-state {
+	background: var(--fpc-warning-soft);
+	color: var(--fpc-warning);
+}
+
+@media (max-width: 1180px) {
+	.foundation-modal-body {
+		grid-template-columns: minmax(0, 1fr) 290px;
+	}
+	.foundation-intro {
+		grid-template-columns: minmax(300px, 0.86fr) minmax(360px, 1.14fr);
+	}
+}
+
+@media (max-width: 1024px) {
+	.foundation-overlay {
+		align-items: stretch;
+		padding: 0;
+	}
+
+	.foundation-modal {
+		border: 0;
+		border-radius: 0;
+		max-height: 100dvh;
+		min-height: 100dvh;
+		width: 100%;
+	}
+
+	.foundation-intro {
+		display: block;
+		max-width: 760px;
+	}
+
+	/* Mirrors the original calculator: imagery yields to the task on mobile/tablet. */
+	.foundation-intro-image {
+		display: none;
+	}
+
+	.foundation-modal-body {
+		display: block;
+		overflow-y: auto;
+	}
+
+	.foundation-canvas {
+		overflow: visible;
+		padding: 30px 24px 38px;
+	}
+
+	.foundation-live-summary {
+		border: 1px solid rgba(255, 255, 255, 0.14);
+		border-radius: 18px;
+		margin: 0 24px 32px;
+		overflow: visible;
+		padding: 22px;
+	}
+
+	.foundation-modal-footer {
+		bottom: 0;
+		position: sticky;
+		z-index: 4;
+	}
+}
+
+@media (max-width: 700px) {
+	.foundation-modal-header {
+		gap: 10px;
+		min-height: 68px;
+		padding: 10px 14px;
+	}
+
+	.foundation-modal-logo {
+		height: 38px;
+		max-width: 108px;
+	}
+
+	.foundation-brand span {
+		display: none;
+	}
+
+	.foundation-brand strong {
+		font-size: 0.92rem;
+		max-width: 148px;
+	}
+
+	.foundation-theme-button,
+	.foundation-save-button {
+		font-size: 0;
+		gap: 0;
+		padding: 0;
+		width: 44px;
+	}
+
+	.foundation-theme-button .foundation-theme-icon {
+		font-size: 1rem;
+	}
+
+	.foundation-save-button::before {
+		content: "Save";
+		font-size: 0.72rem;
+	}
+
+	.foundation-option-grid,
+	.foundation-option-grid.is-compact,
+	.foundation-contact-grid,
+	.foundation-total-grid {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.foundation-canvas h1 {
+		font-size: clamp(2rem, 10vw, 2.8rem);
+	}
+
+	.foundation-contact-actions,
+	.foundation-save-actions {
+		align-items: stretch;
+		flex-direction: column-reverse;
+	}
+
+	.foundation-contact-actions button,
+	.foundation-save-actions button,
+	.foundation-modal-footer button {
+		flex: 1 1 auto;
+	}
+
+	.foundation-live-summary {
+		margin-inline: 16px;
+	}
+
+	.foundation-canvas {
+		padding-inline: 16px;
+	}
+}
+
+@media (max-width: 380px) {
+	.foundation-modal-logo {
+		display: none;
+	}
+	.foundation-brand strong {
+		max-width: 132px;
+	}
+	.foundation-header-actions {
+		gap: 6px;
+	}
+}
+
+@media (prefers-contrast: more) {
+	.foundation-overlay[data-theme="dark"] {
+		--fpc-border: rgba(255, 255, 255, 0.60);
+		--fpc-border-strong: rgba(255, 255, 255, 0.84);
+	}
+	.foundation-overlay[data-theme="light"] {
+		--fpc-border: #6b7280;
+		--fpc-border-strong: #4b5563;
+	}
+	.foundation-option-card,
+	.foundation-toggle-choice,
+	.foundation-field input,
+	.foundation-field textarea,
+	.foundation-contact input,
+	.foundation-contact textarea,
+	.foundation-header-button,
+	.foundation-secondary-button {
+		border-width: 2px;
+	}
+}
+
+/* Keep critical controls comfortably above the WCAG target-size threshold after browser sub-pixel rounding. */
+.foundation-header-button,
+.foundation-close-button,
+.foundation-save-close,
+.foundation-secondary-button {
+	min-height: 46px;
+}
+.foundation-close-button,
+.foundation-save-close {
+	height: 46px;
+	width: 46px;
+}
+@media (max-width: 700px) {
+	.foundation-theme-button,
+	.foundation-save-button {
+		width: 46px;
+	}
+}
+
+@media (max-width: 620px) {
+	/* The legacy 1.4.x mobile rule labelled every header action as “Save”. Keep the theme control icon-only. */
+	.foundation-theme-button::before {
+		content: none;
+	}
+	.foundation-save-button::before {
+		content: "Save";
+	}
+}
+
+/* ======================================================================
+   1.4.4 HERITAGE ALIGNMENT
+   Restores the original Inkfire customer-flow composition while retaining
+   the 1.4.x accessible controls, pricing engine and live estimate panel.
+   ====================================================================== */
+
+.foundation-sr-only {
+	border: 0 !important;
+	clip: rect(0 0 0 0) !important;
+	height: 1px !important;
+	margin: -1px !important;
+	overflow: hidden !important;
+	padding: 0 !important;
+	position: absolute !important;
+	white-space: nowrap !important;
+	width: 1px !important;
+}
+
+/* The original calculator was a true two-panel shell on its opening and
+   hand-off screens. The workspace becomes full-width for the actual journey. */
+.foundation-modal {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr);
+	grid-template-rows: minmax(0, 1fr);
+	height: min(900px, 90dvh);
+	max-height: 90dvh;
+	min-height: min(700px, 90dvh);
+	max-width: 1600px;
+	width: 95vw;
+}
+
+.foundation-workspace {
+	display: flex;
+	flex-direction: column;
+	grid-column: 1;
+	grid-row: 1;
+	min-height: 0;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.foundation-heritage-visual {
+	align-items: flex-end;
+	background-color: #1c1d2d;
+	background-position: center;
+	background-repeat: no-repeat;
+	background-size: cover;
+	color: #ffffff;
+	display: flex;
+	grid-column: 1;
+	grid-row: 1;
+	min-height: 0;
+	min-width: 0;
+	padding: clamp(38px, 4vw, 60px);
+	position: relative;
+}
+
+.foundation-heritage-visual[hidden] {
+	display: none !important;
+}
+
+.foundation-modal[data-foundation-has-visual="true"] {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+}
+
+.foundation-modal[data-foundation-has-visual="true"] .foundation-workspace {
+	grid-column: 2;
+}
+
+.foundation-heritage-visual::after {
+	background: linear-gradient(180deg, rgba(21, 22, 34, 0.02) 30%, rgba(21, 22, 34, 0.34) 62%, rgba(21, 22, 34, 0.72) 100%);
+	content: "";
+	inset: 0;
+	pointer-events: none;
+	position: absolute;
+}
+
+.foundation-heritage-visual-copy {
+	max-width: 620px;
+	position: relative;
+	z-index: 1;
+}
+
+.foundation-heritage-visual-copy h2 {
+	background: linear-gradient(90deg, #04ad93 0%, #f5f2f0 45%, #fbccbf 68%, #e14e00 100%);
+	background-clip: text;
+	color: transparent;
+	font-size: clamp(2rem, 3vw, 2.75rem);
+	font-weight: 850;
+	letter-spacing: -0.035em;
+	line-height: 1.08;
+	margin: 0 0 18px;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+}
+
+.foundation-heritage-visual-copy p {
+	color: rgba(255, 255, 255, 0.94);
+	font-size: 1rem;
+	line-height: 1.55;
+	margin: 0;
+}
+
+.foundation-heritage-quote {
+	font-style: italic;
+}
+
+.foundation-heritage-attribution {
+	font-style: normal !important;
+	font-weight: 800;
+	margin-top: 16px !important;
+}
+
+/* Original header proportions, with the current accessible controls retained. */
+.foundation-modal-header {
+	min-height: 88px;
+	padding: 18px 20px;
+}
+
+.foundation-brand > div > span {
+	display: none;
+}
+
+.foundation-brand strong {
+	font-size: 1rem;
+	font-weight: 780;
+}
+
+/* Segmented progress bar from the original build. Text/count remain available
+   to assistive technology via the progressbar semantics. */
+.foundation-progress-wrap {
+	background: transparent !important;
+	border-bottom: 0 !important;
+	box-shadow: none !important;
+	min-height: 4px;
+	padding: 0 !important;
+}
+
+.foundation-progress-segments {
+	display: flex;
+	gap: 8px;
+	width: 100%;
+}
+
+.foundation-progress-segment {
+	background: rgba(148, 163, 184, 0.44);
+	border-radius: 999px;
+	flex: 1 1 0;
+	height: 4px;
+	min-width: 2px;
+	transition: background-color 180ms ease;
+}
+
+.foundation-progress-segment.is-active {
+	background: #07a079;
+}
+
+/* Journey screens: original centred banner + padded content, now with the
+   live estimate retained as the new right-side panel. */
+.foundation-modal[data-foundation-view="step"] .foundation-canvas {
+	padding: 0;
+}
+
+.foundation-modal[data-foundation-view="step"] .foundation-step {
+	max-width: none;
+	min-height: 100%;
+	width: 100%;
+}
+
+.foundation-step-banner {
+	background: rgba(255, 255, 255, 0.035);
+	border-bottom: 1px solid var(--fpc-border);
+	padding: clamp(30px, 3vw, 48px) clamp(24px, 3vw, 48px);
+	text-align: center;
+}
+
+.foundation-overlay[data-theme="light"] .foundation-step-banner {
+	background: rgba(255, 255, 255, 0.42);
+}
+
+.foundation-step-banner h1,
+.foundation-canvas .foundation-step-banner h1 {
+	color: var(--fpc-peach);
+	font-size: clamp(1.65rem, 2.35vw, 2.15rem);
+	font-weight: 830;
+	letter-spacing: -0.025em;
+	line-height: 1.14;
+	margin: 0 0 8px;
+}
+
+.foundation-overlay[data-theme="light"] .foundation-step-banner h1 {
+	color: #9a451a;
+}
+
+.foundation-step-banner .foundation-step-intro {
+	font-size: 1rem;
+	line-height: 1.5;
+	margin: 0 auto;
+	max-width: 700px;
+}
+
+.foundation-step-content {
+	padding: 32px 40px 40px;
+}
+
+.foundation-modal[data-foundation-view="step"] .foundation-fields {
+	gap: 32px;
+	margin: 0 auto;
+	max-width: 100%;
+	width: 90%;
+}
+
+.foundation-field-heading {
+	margin-bottom: 12px;
+}
+
+.foundation-field-heading legend,
+.foundation-field-heading > label {
+	font-size: 1.08rem;
+	font-weight: 760;
+}
+
+.foundation-option-grid {
+	grid-template-columns: minmax(0, 1fr);
+	gap: 16px;
+}
+
+.foundation-option-card {
+	border-radius: 12px;
+	min-height: 110px;
+	padding: 20px 18px;
+}
+
+.foundation-option-copy {
+	min-width: 0;
+}
+
+.foundation-option-copy strong {
+	font-size: 1rem;
+	line-height: 1.35;
+}
+
+@media (min-width: 700px) {
+	.foundation-option-grid {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (min-width: 1100px) {
+	.foundation-option-grid {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+
+/* Keep the new estimate panel, but let the main question area breathe like
+   the original calculator instead of becoming a dense dashboard. */
+.foundation-modal-body {
+	grid-template-columns: minmax(0, 1fr) minmax(300px, 338px);
+}
+
+.foundation-live-summary {
+	padding: 30px 34px;
+}
+
+.foundation-modal-footer {
+	min-height: 84px;
+	padding: 18px 40px 22px;
+}
+
+/* Opening screen: left visual fills its half edge-to-edge. The right side uses
+   the original concise Brief / Plan / Quote presentation. */
+.foundation-modal[data-foundation-view="intro"] .foundation-modal-body,
+.foundation-modal[data-foundation-view="contact"] .foundation-modal-body {
+	display: block;
+	overflow: hidden;
+}
+
+.foundation-modal[data-foundation-view="intro"] .foundation-canvas {
+	display: flex;
+	overflow-y: auto;
+	padding: 0;
+}
+
+.foundation-intro-heritage {
+	display: flex;
+	flex: 1 1 auto;
+	max-width: none;
+	min-height: 100%;
+	width: 100%;
+}
+
+.foundation-intro-heritage .foundation-intro-copy {
+	align-self: center;
+	box-sizing: border-box;
+	margin: auto;
+	max-width: 700px;
+	padding: 46px clamp(40px, 5vw, 80px);
+	width: 100%;
+}
+
+.foundation-sections-list {
+	align-items: center;
+	color: #04ad93;
+	display: flex;
+	flex-wrap: wrap;
+	font-size: 0.79rem;
+	font-weight: 780;
+	gap: 13px;
+	letter-spacing: 0.12em;
+	margin-bottom: 28px;
+	text-transform: uppercase;
+}
+
+.foundation-sections-list i {
+	font-style: normal;
+}
+
+.foundation-intro-heritage h1 {
+	font-size: clamp(2rem, 3vw, 2.75rem);
+	line-height: 1.08;
+	margin: 0 0 28px;
+}
+
+.foundation-intro-heritage .foundation-intro-copy > p:first-of-type {
+	font-size: 1.04rem;
+	line-height: 1.62;
+	margin-bottom: 30px;
+}
+
+.foundation-intro-heritage .foundation-large-button {
+	min-width: 210px;
+}
+
+.foundation-intro-heritage .foundation-small-print {
+	font-size: 0.83rem;
+	margin: 18px 0 0;
+}
+
+/* Contact hand-off mirrors the old testimonial-image slide. */
+.foundation-modal[data-foundation-view="contact"] .foundation-canvas {
+	padding: 38px 44px 44px;
+}
+
+.foundation-modal[data-foundation-view="contact"] .foundation-contact {
+	margin: 0 auto;
+	max-width: 720px;
+}
+
+/* Responsive behaviour follows the original: the imagery gives way to the
+   task below tablet widths and the wizard becomes a full-screen application. */
+@media (max-width: 1024px) {
+	.foundation-modal,
+	.foundation-modal[data-foundation-has-visual="true"] {
+		border: 0;
+		border-radius: 0;
+		grid-template-columns: minmax(0, 1fr);
+		height: 100dvh;
+		max-height: 100dvh;
+		min-height: 100dvh;
+		width: 100vw;
+	}
+
+	.foundation-heritage-visual {
+		display: none !important;
+	}
+
+	.foundation-modal[data-foundation-has-visual="true"] .foundation-workspace,
+	.foundation-workspace {
+		grid-column: 1;
+	}
+
+	.foundation-modal-header {
+		min-height: 68px;
+		padding: 12px 20px;
+	}
+
+	.foundation-step-banner {
+		padding: 18px 20px;
+	}
+
+	.foundation-step-content {
+		padding: 24px 20px 28px;
+	}
+
+	.foundation-modal[data-foundation-view="step"] .foundation-fields {
+		width: 100%;
+	}
+
+	.foundation-modal-body {
+		display: block;
+		overflow-y: auto;
+	}
+
+	.foundation-canvas {
+		overflow: visible;
+	}
+
+	.foundation-live-summary {
+		margin: 0 20px 28px;
+		padding: 22px;
+	}
+
+	.foundation-modal-footer {
+		padding: 16px 20px 20px;
+	}
+
+	.foundation-modal[data-foundation-view="intro"] .foundation-canvas {
+		display: block;
+	}
+
+	.foundation-intro-heritage .foundation-intro-copy {
+		max-width: 760px;
+		padding: 38px 24px 44px;
+	}
+
+	.foundation-modal[data-foundation-view="contact"] .foundation-canvas {
+		padding: 30px 24px 38px;
+	}
+}
+
+@media (max-width: 700px) {
+	.foundation-modal-header {
+		padding: 10px 14px;
+	}
+
+	.foundation-step-banner h1,
+	.foundation-canvas .foundation-step-banner h1 {
+		font-size: 1.55rem;
+	}
+
+	.foundation-step-banner .foundation-step-intro {
+		font-size: 0.94rem;
+	}
+
+	.foundation-step-content {
+		padding: 22px 16px 28px;
+	}
+
+	.foundation-live-summary {
+		margin-inline: 16px;
+	}
+
+	.foundation-modal-footer {
+		padding: 12px 16px 16px;
+	}
+
+	.foundation-intro-heritage .foundation-intro-copy {
+		padding: 38px 18px 46px;
+	}
+
+	.foundation-sections-list {
+		margin-bottom: 22px;
+	}
+
+	.foundation-modal[data-foundation-view="contact"] .foundation-canvas {
+		padding: 28px 16px 36px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.foundation-progress-segment,
+	.foundation-option-card {
+		transition: none !important;
+	}
+}
+
+/* ======================================================================
+   1.6.0 RETENTION + PREMIUM BRIEF LAYER
+   Adds the premium opening composition, staged progress, soft lead capture,
+   recovery panels and responsive estimate drawer without altering pricing.
+   ====================================================================== */
+
+/* Green glass controls in light mode: white text remains readable while the
+   control still looks like glass rather than a flat utility button. */
+.foundation-overlay[data-theme="light"] .foundation-theme-button,
+.foundation-overlay[data-theme="light"] .foundation-primary-button {
+	background:
+		linear-gradient(135deg, rgba(10, 119, 101, .96), rgba(7, 91, 79, .94));
+	border: 1px solid rgba(255, 255, 255, .64);
+	box-shadow: 0 10px 26px rgba(5, 75, 65, .20), inset 0 1px 0 rgba(255, 255, 255, .30);
+	color: #fff;
+	-webkit-backdrop-filter: blur(16px) saturate(150%);
+	backdrop-filter: blur(16px) saturate(150%);
+}
+.foundation-overlay[data-theme="light"] .foundation-theme-button:hover,
+.foundation-overlay[data-theme="light"] .foundation-primary-button:hover {
+	background: linear-gradient(135deg, rgba(8, 106, 91, .98), rgba(5, 78, 68, .97));
+	color: #fff;
+}
+.foundation-overlay[data-theme="light"] .foundation-theme-button:focus-visible,
+.foundation-overlay[data-theme="light"] .foundation-primary-button:focus-visible {
+	box-shadow: 0 0 0 3px #fff, 0 0 0 6px #006c5d, 0 10px 26px rgba(5, 75, 65, .20);
+}
+
+.foundation-help-button {
+	gap: 7px;
+}
+.foundation-help-button > span:first-child {
+	display: grid;
+	place-items: center;
+	width: 22px;
+	height: 22px;
+	border: 1px solid currentColor;
+	border-radius: 999px;
+	font-size: .78rem;
+	font-weight: 900;
+}
+
+/* High-level Brief → Plan → Quote stage rail. This never moves backwards when
+   a customer adds another service route. */
+.foundation-stage-progress {
+	align-items: center;
+	background: color-mix(in srgb, var(--fpc-surface) 86%, transparent);
+	border-bottom: 1px solid var(--fpc-border);
+	display: grid;
+	grid-template-columns: auto minmax(28px, 1fr) auto minmax(28px, 1fr) auto;
+	gap: 12px;
+	padding: 12px clamp(20px, 3vw, 40px);
+}
+.foundation-stage-progress[hidden] { display: none !important; }
+.foundation-stage-progress > div {
+	align-items: center;
+	color: var(--fpc-muted);
+	display: flex;
+	gap: 8px;
+	font-size: .75rem;
+	letter-spacing: .075em;
+	text-transform: uppercase;
+}
+.foundation-stage-progress > div span {
+	display: grid;
+	place-items: center;
+	width: 27px;
+	height: 27px;
+	border: 1px solid var(--fpc-border-strong);
+	border-radius: 999px;
+	font-size: .72rem;
+	font-weight: 900;
+	letter-spacing: 0;
+}
+.foundation-stage-progress > i {
+	height: 2px;
+	background: var(--fpc-border);
+	border-radius: 999px;
+}
+.foundation-stage-progress > div.is-active,
+.foundation-stage-progress > div.is-complete { color: var(--fpc-accent); }
+.foundation-stage-progress > div.is-active span,
+.foundation-stage-progress > div.is-complete span {
+	background: var(--fpc-accent);
+	border-color: var(--fpc-accent);
+	color: #fff;
+}
+.foundation-stage-progress > div.is-complete + i { background: var(--fpc-accent); }
+
+/* Within-route progress. Unlike the old thin orphan bar, keep the route name
+   and count visible so the customer always knows how much of this section is left. */
+.foundation-progress-wrap {
+	display: block;
+	min-height: 0;
+	padding: 11px clamp(20px, 3vw, 40px) 12px !important;
+}
+.foundation-progress-wrap[hidden] { display: none !important; }
+.foundation-progress-meta {
+	align-items: center;
+	color: var(--fpc-muted);
+	display: flex;
+	font-size: .76rem;
+	font-weight: 750;
+	gap: 12px;
+	justify-content: space-between;
+	line-height: 1.35;
+	margin-bottom: 8px;
+}
+.foundation-progress-meta span:first-child {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.foundation-progress-meta span:last-child { flex: 0 0 auto; }
+.foundation-progress-segments { gap: 6px; }
+.foundation-progress-segment { height: 3px; }
+
+/* Premium intro. The visual half remains the brand/evidence layer; this side
+   is the guided action layer with no dead white desert. */
+.foundation-modal[data-foundation-view="intro"] .foundation-workspace,
+.foundation-modal[data-foundation-view="capture"] .foundation-workspace {
+	background:
+		radial-gradient(circle at 94% 12%, rgba(251, 204, 191, .19), transparent 31%),
+		radial-gradient(circle at 12% 84%, rgba(4, 173, 147, .10), transparent 35%),
+		linear-gradient(160deg, #fff 0%, #fbfcfb 62%, #fff9f6 100%);
+}
+.foundation-overlay[data-theme="dark"] .foundation-modal[data-foundation-view="intro"] .foundation-workspace,
+.foundation-overlay[data-theme="dark"] .foundation-modal[data-foundation-view="capture"] .foundation-workspace {
+	background:
+		radial-gradient(circle at 92% 12%, rgba(225, 78, 0, .10), transparent 32%),
+		radial-gradient(circle at 14% 84%, rgba(4, 173, 147, .10), transparent 36%),
+		linear-gradient(160deg, #1c1d2d 0%, #202334 58%, #171928 100%);
+}
+.foundation-intro-heritage .foundation-intro-copy {
+	max-width: 760px;
+	padding: clamp(34px, 4.4vw, 72px) clamp(34px, 5vw, 84px);
+}
+.foundation-intro-eyebrow {
+	color: var(--fpc-accent);
+	font-size: .76rem !important;
+	font-weight: 850;
+	letter-spacing: .13em;
+	margin: 0 0 16px !important;
+	text-transform: uppercase;
+}
+.foundation-intro-stage-rail {
+	align-items: center;
+	display: grid;
+	grid-template-columns: auto minmax(18px, 1fr) auto minmax(18px, 1fr) auto;
+	gap: 10px;
+	max-width: 470px;
+	margin-bottom: clamp(24px, 3.2vw, 38px);
+}
+.foundation-intro-stage-rail > span {
+	align-items: center;
+	color: var(--fpc-muted);
+	display: flex;
+	font-size: .7rem;
+	font-weight: 820;
+	gap: 7px;
+	letter-spacing: .075em;
+	text-transform: uppercase;
+}
+.foundation-intro-stage-rail > span b {
+	display: grid;
+	place-items: center;
+	width: 25px;
+	height: 25px;
+	border: 1px solid var(--fpc-border-strong);
+	border-radius: 999px;
+	font-size: .7rem;
+	letter-spacing: 0;
+}
+.foundation-intro-stage-rail > span.is-active { color: var(--fpc-accent); }
+.foundation-intro-stage-rail > span.is-active b { background: var(--fpc-accent); border-color: var(--fpc-accent); color: #fff; }
+.foundation-intro-stage-rail > i { height: 1px; background: var(--fpc-border); }
+.foundation-intro-heritage h1 {
+	font-size: clamp(2.45rem, 4.2vw, 4.45rem);
+	font-weight: 860;
+	letter-spacing: -.055em;
+	line-height: .98;
+	margin: 0 0 24px;
+	max-width: 11ch;
+}
+.foundation-intro-heritage h1 span {
+	background: linear-gradient(90deg, #04ad93 0%, #0d776b 48%, #e14e00 100%);
+	background-clip: text;
+	color: transparent;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+}
+.foundation-overlay[data-theme="dark"] .foundation-intro-heritage h1 span {
+	background: linear-gradient(90deg, #62e3c9 0%, #fbccbf 62%, #ff8a4a 100%);
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+}
+.foundation-intro-lede {
+	font-size: clamp(.98rem, 1.25vw, 1.08rem) !important;
+	line-height: 1.65 !important;
+	margin: 0 0 24px !important;
+	max-width: 62ch;
+}
+.foundation-intro-benefits {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+	margin: 0 0 28px;
+}
+.foundation-intro-benefits span {
+	align-items: center;
+	background: rgba(255,255,255,.52);
+	border: 1px solid var(--fpc-border);
+	border-radius: 14px;
+	display: flex;
+	font-size: .79rem;
+	font-weight: 750;
+	gap: 7px;
+	line-height: 1.35;
+	min-height: 58px;
+	padding: 10px 12px;
+}
+.foundation-overlay[data-theme="dark"] .foundation-intro-benefits span { background: rgba(255,255,255,.045); }
+.foundation-intro-benefits b { color: var(--fpc-accent); font-size: 1rem; }
+.foundation-intro-heritage .foundation-large-button { min-width: 235px; }
+.foundation-intro-heritage .foundation-small-print {
+	color: var(--fpc-muted);
+	font-size: .78rem;
+	font-weight: 650;
+	margin: 15px 0 0;
+}
+.foundation-intro-heritage .foundation-small-print i { font-style: normal; margin: 0 4px; }
+
+.foundation-return-card {
+	background: color-mix(in srgb, var(--fpc-accent-soft) 70%, transparent);
+	border: 1px solid color-mix(in srgb, var(--fpc-accent) 35%, var(--fpc-border));
+	border-radius: 16px;
+	margin: 0 0 24px;
+	padding: 15px 16px;
+}
+.foundation-return-card > span { color: var(--fpc-accent); display:block; font-size:.68rem; font-weight:850; letter-spacing:.08em; text-transform:uppercase; }
+.foundation-return-card > strong { display:block; font-size:1rem; margin-top:3px; }
+.foundation-return-card p { font-size:.85rem !important; margin:3px 0 10px !important; }
+.foundation-return-card > div { display:flex; flex-wrap:wrap; gap:10px; }
+.foundation-text-button {
+	appearance: none;
+	background: transparent;
+	border: 0;
+	border-radius: 8px;
+	color: var(--fpc-accent);
+	cursor: pointer;
+	font: inherit;
+	font-weight: 800;
+	min-height: 44px;
+	padding: 8px 10px;
+	text-decoration: underline;
+	text-decoration-thickness: 1px;
+	text-underline-offset: 3px;
+}
+.foundation-text-button:hover { text-decoration-thickness: 2px; }
+.foundation-text-button:focus-visible { outline: 3px solid var(--fpc-accent); outline-offset: 2px; }
+
+/* Mobile-only image hero preserves the human brand cue instead of removing it. */
+.foundation-mobile-brand-hero { display: none; }
+
+/* Soft capture screen. */
+.foundation-modal[data-foundation-view="capture"] .foundation-modal-body { display:block; overflow:hidden; }
+.foundation-modal[data-foundation-view="capture"] .foundation-canvas { display:flex; overflow-y:auto; padding:0; }
+.foundation-capture { display:flex; flex:1 1 auto; min-height:100%; width:100%; }
+.foundation-capture-inner {
+	align-self:center;
+	box-sizing:border-box;
+	margin:auto;
+	max-width:760px;
+	padding:clamp(34px,4.4vw,70px) clamp(34px,5vw,84px);
+	width:100%;
+}
+.foundation-capture h1 {
+	font-size:clamp(2rem,3.2vw,3.25rem);
+	letter-spacing:-.045em;
+	line-height:1.05;
+	margin:0 0 16px;
+}
+.foundation-capture .foundation-step-intro { margin:0 0 24px; max-width:58ch; }
+.foundation-capture-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.foundation-capture-grid label,
+.foundation-save-dialog label { display:block; }
+.foundation-capture-grid label > span,
+.foundation-save-dialog label > span { display:flex; justify-content:space-between; gap:10px; font-size:.85rem; font-weight:800; margin-bottom:7px; }
+.foundation-capture-grid label b,
+.foundation-save-dialog label b { color:var(--fpc-muted); font-size:.65rem; font-weight:800; text-transform:uppercase; }
+.foundation-capture-grid input,
+.foundation-save-dialog input {
+	background:color-mix(in srgb, var(--fpc-surface) 84%, transparent);
+	border:1px solid var(--fpc-border-strong);
+	border-radius:12px;
+	color:var(--fpc-ink);
+	font:inherit;
+	min-height:50px;
+	padding:11px 13px;
+	width:100%;
+}
+.foundation-capture-grid input:focus-visible,
+.foundation-save-dialog input:focus-visible { box-shadow:var(--fpc-focus); outline:0; }
+.foundation-capture-marketing,
+.foundation-contact-marketing {
+	align-items:flex-start;
+	display:flex;
+	gap:10px;
+	font-size:.82rem;
+	line-height:1.45;
+	margin:15px 0 2px;
+}
+.foundation-capture-marketing input,
+.foundation-contact-marketing input { flex:0 0 auto; margin-top:3px; min-height:18px; width:18px; }
+.foundation-capture .foundation-large-button { margin-top:22px; }
+.foundation-skip-capture { display:block; margin-top:8px; }
+.foundation-capture-privacy { color:var(--fpc-muted); font-size:.76rem; line-height:1.5; margin:14px 0 0; max-width:62ch; }
+.foundation-capture-status { color:var(--fpc-accent); font-size:.8rem; font-weight:750; margin:12px 0 0; }
+.foundation-capture-security:empty,
+[data-foundation-turnstile]:empty { min-height:0; }
+.foundation-honeypot { position:absolute !important; left:-10000px !important; width:1px !important; height:1px !important; overflow:hidden !important; }
+
+/* Route-completion reward and add-another-service cards. */
+.foundation-route-complete { margin:0 auto; max-width:920px; padding:clamp(28px,4vw,56px); text-align:center; }
+.foundation-complete-mark,
+.foundation-success-mark {
+	display:grid;
+	place-items:center;
+	width:54px;
+	height:54px;
+	margin:0 auto 16px;
+	border-radius:999px;
+	background:var(--fpc-accent);
+	color:#fff;
+	font-size:1.35rem;
+	font-weight:900;
+	box-shadow:0 12px 28px rgba(7,94,83,.20);
+}
+.foundation-route-complete h1 { margin:0 0 12px; }
+.foundation-route-complete .foundation-step-intro { margin:0 auto 24px; max-width:64ch; }
+.foundation-route-complete-next { margin-top:28px; }
+.foundation-route-complete-next h2 { font-size:1.05rem; margin:0 0 12px; }
+.foundation-add-route-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.foundation-add-route-card {
+	appearance:none;
+	background:color-mix(in srgb, var(--fpc-surface) 78%, transparent);
+	border:1px solid var(--fpc-border);
+	border-radius:15px;
+	color:var(--fpc-ink);
+	cursor:pointer;
+	font:inherit;
+	min-height:112px;
+	padding:16px;
+	text-align:left;
+}
+.foundation-add-route-card:hover { border-color:var(--fpc-accent); transform:translateY(-1px); }
+.foundation-add-route-card:focus-visible { box-shadow:var(--fpc-focus); outline:0; }
+.foundation-add-route-card > span { color:var(--fpc-accent); font-size:1.2rem; font-weight:900; }
+.foundation-add-route-card strong,.foundation-add-route-card small { display:block; }
+.foundation-add-route-card strong { margin-top:5px; }
+.foundation-add-route-card small { color:var(--fpc-muted); margin-top:4px; }
+.foundation-route-complete-actions { align-items:center; display:flex; justify-content:center; gap:14px; margin-top:26px; }
+.foundation-all-routes { color:var(--fpc-muted); }
+
+/* Captured identity: show it once and allow editing instead of asking again. */
+.foundation-captured-contact {
+	align-items:center;
+	background:color-mix(in srgb, var(--fpc-accent-soft) 72%, transparent);
+	border:1px solid color-mix(in srgb, var(--fpc-accent) 34%, var(--fpc-border));
+	border-radius:15px;
+	display:flex;
+	gap:14px;
+	justify-content:space-between;
+	margin-bottom:20px;
+	padding:14px 16px;
+}
+.foundation-captured-contact strong,.foundation-captured-contact span { display:block; }
+.foundation-captured-contact span { color:var(--fpc-muted); font-size:.8rem; }
+
+/* Sticky mobile estimate pill and drawer. Desktop keeps the right-side live panel. */
+.foundation-mobile-estimate-pill { display:none; }
+.foundation-price-toast {
+	background:rgba(10,95,82,.96);
+	border:1px solid rgba(255,255,255,.38);
+	border-radius:999px;
+	bottom:96px;
+	box-shadow:0 14px 36px rgba(0,0,0,.18);
+	color:#fff;
+	font-size:.8rem;
+	font-weight:800;
+	left:50%;
+	padding:10px 16px;
+	position:absolute;
+	transform:translateX(-50%);
+	z-index:20;
+}
+.foundation-price-toast[hidden] { display:none !important; }
+
+/* Help / save / leave overlays sit above the application while retaining modal focus. */
+.foundation-overlay-panel {
+	align-items:center;
+	background:rgba(10,12,20,.62);
+	dis:flex;
+	display:flex;
+	inset:0;
+	justify-content:center;
+	padding:20px;
+	position:absolute;
+	z-index:80;
+}
+.foundation-save-dialog {
+	background:var(--fpc-surface);
+	border:1px solid var(--fpc-border);
+	border-radius:22px;
+	box-shadow:0 28px 80px rgba(0,0,0,.28);
+	color:var(--fpc-ink);
+	max-height:min(760px,90dvh);
+	max-width:560px;
+	overflow:auto;
+	padding:clamp(24px,4vw,40px);
+	position:relative;
+	width:min(100%,560px);
+}
+.foundation-overlay[data-theme="dark"] .foundation-save-dialog { background:#202232; }
+.foundation-save-dialog h2 { font-size:clamp(1.6rem,3vw,2.2rem); margin:0 0 10px; }
+.foundation-save-dialog > p { color:var(--fpc-muted); }
+.foundation-save-dialog > label { margin-top:14px; }
+.foundation-save-close { position:absolute; right:16px; top:16px; }
+.foundation-save-actions,
+.foundation-leave-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; }
+.foundation-help-dialog ul { color:var(--fpc-muted); padding-left:20px; }
+.foundation-help-dialog li + li { margin-top:8px; }
+
+@media (max-width: 1180px) {
+	.foundation-intro-benefits { grid-template-columns:1fr; gap:7px; }
+	.foundation-intro-benefits span { min-height:44px; }
+	.foundation-intro-heritage h1 { font-size:clamp(2.35rem,4vw,3.6rem); }
+}
+
+@media (max-width: 1024px) {
+	/* The desktop image panel gives way to a deliberately composed mobile hero,
+	   not to nothing. Header controls remain first in reading/order focus. */
+	.foundation-mobile-brand-hero {
+		dis:block;
+		height:clamp(190px,28dvh,235px);
+		margin:-1px -1px 26px;
+		overflow:hidden;
+		position:relative;
+	}
+	.foundation-mobile-brand-hero::after {
+		background:linear-gradient(180deg,transparent 45%,rgba(20,21,33,.76) 100%);
+		content:"";
+		inset:0;
+		position:absolute;
+	}
+	.foundation-mobile-brand-hero img { display:block; height:100%; object-fit:cover; object-position:center 30%; width:100%; }
+	.foundation-mobile-brand-hero span {
+		background:rgba(20,21,33,.58);
+		border:1px solid rgba(255,255,255,.24);
+		border-radius:999px;
+		bottom:14px;
+		color:#fff;
+		font-size:.72rem;
+		font-weight:800;
+		left:16px;
+		letter-spacing:.03em;
+		padding:7px 10px;
+		position:absolute;
+		z-index:2;
+		-webkit-backdrop-filter:blur(12px);
+		backdrop-filter:blur(12px);
+	}
+	.foundation-mobile-brand-hero i { font-style:normal; margin:0 3px; }
+
+	.foundation-modal[data-foundation-view="intro"] .foundation-canvas,
+	.foundation-modal[data-foundation-view="capture"] .foundation-canvas { display:block; }
+	.foundation-intro-heritage,
+	.foundation-capture { display:block; min-height:0; }
+	.foundation-intro-heritage .foundation-intro-copy,
+	.foundation-capture-inner { max-width:760px; padding:0 24px 46px; }
+	.foundation-intro-benefits { grid-template-columns:repeat(3,minmax(0,1fr)); }
+
+	.foundation-modal-body:not(.is-summary-hidden) { display:block; }
+	.foundation-modal-body:not(.is-summary-hidden) .foundation-live-summary {
+		display:none;
+		margin:0;
+		position:fixed;
+		left:12px;
+		right:12px;
+		bottom:76px;
+		max-height:min(58dvh,520px);
+		z-index:50;
+		border-radius:20px;
+		box-shadow:0 22px 60px rgba(0,0,0,.28);
+		overflow:auto;
+	}
+	.foundation-modal-body:not(.is-summary-hidden) .foundation-live-summary.is-mobile-expanded { display:block; }
+	.foundation-mobile-estimate-pill:not([hidden]) {
+		align-items:center;
+		background:linear-gradient(135deg,rgba(8,113,96,.97),rgba(6,84,74,.97));
+		border:1px solid rgba(255,255,255,.46);
+		border-radius:16px;
+		bottom:12px;
+		box-shadow:0 14px 35px rgba(0,0,0,.24);
+		color:#fff;
+		dis:grid;
+		grid-template-columns:auto 1fr auto;
+		gap:9px;
+		left:12px;
+		min-height:56px;
+		padding:9px 14px;
+		position:fixed;
+		right:12px;
+		text-align:left;
+		z-index:55;
+	}
+	.foundation-mobile-estimate-pill span { font-size:.72rem; opacity:.86; }
+	.foundation-mobile-estimate-pill strong { font-size:.88rem; justify-self:end; }
+	.foundation-mobile-estimate-pill b { font-size:1rem; }
+	.foundation-modal[data-foundation-view="step"] .foundation-modal-footer,
+	.foundation-modal[data-foundation-view="review"] .foundation-modal-footer { padding-bottom:80px; }
+
+	.foundation-stage-progress { padding-inline:20px; }
+	.foundation-progress-wrap { padding-inline:20px !important; }
+}
+
+@media (max-width: 700px) {
+	.foundation-help-button > span:last-child,
+	.foundation-theme-button > span:last-child,
+	.foundation-save-button { font-size:0; }
+	.foundation-help-button,
+	.foundation-theme-button,
+	.foundation-save-button { min-width:46px; width:46px; padding:0; justify-content:center; }
+	.foundation-save-button::before { content:"Save"; font-size:.62rem; font-weight:850; }
+	.foundation-help-button > span:first-child { width:24px; height:24px; }
+
+	.foundation-stage-progress { gap:7px; padding:9px 14px; }
+	.foundation-stage-progress > div { gap:5px; font-size:.64rem; letter-spacing:.04em; }
+	.foundation-stage-progress > div span { width:23px; height:23px; font-size:.62rem; }
+	.foundation-progress-wrap { padding:9px 14px 10px !important; }
+	.foundation-progress-meta { font-size:.69rem; }
+
+	.foundation-mobile-brand-hero { height:clamp(185px,25dvh,220px); margin-bottom:22px; }
+	.foundation-mobile-brand-hero img { object-position:center 28%; }
+	.foundation-intro-heritage .foundation-intro-copy,
+	.foundation-capture-inner { padding:0 18px 38px; }
+	.foundation-intro-eyebrow { margin-bottom:12px !important; }
+	.foundation-intro-stage-rail { margin-bottom:22px; }
+	.foundation-intro-stage-rail > span { font-size:.62rem; gap:5px; }
+	.foundation-intro-stage-rail > span b { width:22px; height:22px; }
+	.foundation-intro-heritage h1 { font-size:clamp(2.15rem,11vw,3rem); max-width:12ch; }
+	.foundation-intro-lede { font-size:.96rem !important; }
+	.foundation-intro-benefits { grid-template-columns:1fr; }
+	.foundation-intro-benefits span { min-height:44px; }
+	.foundation-intro-heritage .foundation-large-button,
+	.foundation-capture .foundation-large-button { width:100%; }
+	.foundation-intro-heritage .foundation-small-print { line-height:1.6; }
+
+	.foundation-capture-grid { grid-template-columns:1fr; }
+	.foundation-capture h1 { font-size:2rem; }
+	.foundation-skip-capture { margin-inline:auto; }
+
+	.foundation-add-route-grid { grid-template-columns:1fr; }
+	.foundation-add-route-card { min-height:88px; }
+	.foundation-route-complete { padding:28px 16px 100px; }
+	.foundation-route-complete-actions { align-items:stretch; flex-direction:column-reverse; }
+	.foundation-route-complete-actions .foundation-large-button { width:100%; }
+	.foundation-captured-contact { align-items:flex-start; flex-direction:column; }
+
+	.foundation-overlay-panel { padding:12px; }
+	.foundation-save-dialog { border-radius:18px; max-height:94dvh; padding:28px 20px 22px; }
+	.foundation-save-actions,
+	.foundation-leave-actions { align-items:stretch; flex-direction:column; }
+	.foundation-save-actions button,
+	.foundation-leave-actions button { width:100%; }
+}
+
+@media (max-width: 380px) {
+	.foundation-stage-progress > div strong { display:none; }
+	.foundation-stage-progress { grid-template-columns:auto 1fr auto 1fr auto; }
+	.foundation-intro-stage-rail > span { font-size:0; }
+	.foundation-intro-stage-rail > span b { font-size:.65rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.foundation-add-route-card,
+	.foundation-price-toast,
+	.foundation-mobile-estimate-pill { transition:none !important; }
+}
+
+@media (forced-colors: active) {
+	.foundation-theme-button,
+	.foundation-primary-button,
+	.foundation-mobile-estimate-pill,
+	.foundation-complete-mark,
+	.foundation-success-mark { border:2px solid ButtonText; }
+	.foundation-intro-heritage h1 span { color:CanvasText; -webkit-text-fill-color:CanvasText; }
+}
+.foundation-contact-identity[hidden],
+.foundation-captured-contact[hidden] { display: none !important; }
+@media (max-width: 1024px) {
+	.foundation-mobile-brand-hero { display: block !important; }
+}
+
+/* Native hidden must win over component display rules, including responsive header controls. */
+.foundation-overlay [hidden] {
+	display: none !important;
+}
+
+
+/* 1.6.1 optional closing image selected from the Journey Editor. */
+.foundation-success-mobile-image { display: none; }
+@media (max-width: 1024px) {
+	.foundation-success-mobile-image {
+		display: block;
+		margin: -8px -8px 22px;
+		overflow: hidden;
+		border-radius: 18px;
+		aspect-ratio: 16 / 7;
+	}
+	.foundation-success-mobile-image img { display: block; width: 100%; height: 100%; object-fit: cover; }
 }
