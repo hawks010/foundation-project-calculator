@@ -25,20 +25,23 @@ foreach (
 	delete_option( $option_name );
 }
 
-// The enquiry post type is deliberately hidden, so remove it in bounded batches
-// without relying on the post type being registered during uninstall.
+// The enquiry and brief post types are deliberately hidden, so remove them in
+// bounded batches without relying on the post types being registered during
+// uninstall.
 global $wpdb;
-do {
-	$post_ids = $wpdb->get_col(
-		$wpdb->prepare(
-			"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID ASC LIMIT 500",
-			'foundation_quote'
-		)
-	);
-	foreach ( $post_ids as $post_id ) {
-		wp_delete_post( (int) $post_id, true );
-	}
-} while ( count( $post_ids ) === 500 );
+foreach ( array( 'foundation_quote', 'foundation_brief' ) as $foundation_post_type ) {
+	do {
+		$post_ids = $wpdb->get_col(
+			$wpdb->prepare(
+				"SELECT ID FROM {$wpdb->posts} WHERE post_type = %s ORDER BY ID ASC LIMIT 500",
+				$foundation_post_type
+			)
+		);
+		foreach ( $post_ids as $post_id ) {
+			wp_delete_post( (int) $post_id, true );
+		}
+	} while ( count( $post_ids ) === 500 );
+}
 
 // Clear expiring drafts, rate-limit buckets, idempotency caches and stale locks.
 $option_prefixes = array(
@@ -48,6 +51,10 @@ $option_prefixes = array(
 	'_transient_timeout_foundation_submission_',
 	'_transient_fpc_rl_',
 	'_transient_timeout_fpc_rl_',
+	'_transient_fpc_rev_',
+	'_transient_timeout_fpc_rev_',
+	'_transient_foundation_admin_magic_',
+	'_transient_timeout_foundation_admin_magic_',
 	'foundation_submission_lock_',
 );
 foreach ( $option_prefixes as $prefix ) {

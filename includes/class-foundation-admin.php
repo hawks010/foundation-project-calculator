@@ -146,6 +146,13 @@ class Foundation_Admin {
 			}
 		}
 
+		// The secret field is rendered blank (never echoed back to the browser),
+		// so an empty submission means "leave the stored secret unchanged", not
+		// "clear it" — only overwrite when a genuinely new value was typed.
+		if ( isset( $input['turnstile_secret_key'] ) && '' === trim( (string) $input['turnstile_secret_key'] ) ) {
+			unset( $input['turnstile_secret_key'] );
+		}
+
 		$settings = foundation_sanitize_settings( array_merge( $current, $input ) );
 		update_option( 'foundation_form_settings', $settings, false );
 		$this->redirect( in_array( $section, array( 'emails', 'branding' ), true ) ? 'emails' : 'advanced', 'settings_saved' );
@@ -494,7 +501,8 @@ class Foundation_Admin {
 			}
 		}
 
-		$email_changed = false;
+		$email_changed  = false;
+		$resend_error   = '';
 		if ( isset( $_POST['email'] ) ) {
 			$email = sanitize_email( wp_unslash( $_POST['email'] ) );
 			$name  = isset( $_POST['name'] ) ? sanitize_text_field( wp_unslash( $_POST['name'] ) ) : '';
@@ -505,15 +513,39 @@ class Foundation_Admin {
 				wp_send_json_error( array( 'message' => $updated->get_error_message() ), 422 );
 			}
 			$email_changed = strtolower( $old_email ) !== strtolower( $email );
+
+			// Auto-send a replacement magic link the moment the address is
+			// corrected, rather than leaving it to a separate manual click. The
+			// previous link is left intact by update_lead_contact() above and is
+			// only retired by send_admin_magic_link() once this send succeeds, so
+			// a failed send here never leaves the customer with zero valid link.
+			if ( $email_changed && 'brief' === $record_type ) {
+				$resend = $this->send_admin_magic_link( $record_id );
+				if ( is_wp_error( $resend ) ) {
+					$resend_error = $resend->get_error_message();
+				}
+			}
 		}
 
 		$status = Foundation_Submissions::get_workflow_status( $record_id, $record_type );
 		$labels = Foundation_Submissions::workflow_statuses();
+		if ( $email_changed && 'brief' === $record_type ) {
+			$message = '' !== $resend_error
+				? sprintf(
+					/* translators: %s: reason the replacement magic link could not be sent. */
+					__( 'Customer details updated, but the replacement magic link could not be sent (%s). The previous link still works — use Resend once this is fixed.', 'foundation-customer-form' ),
+					$resend_error
+				)
+				: __( 'Customer details updated and a new private magic link has been sent to the corrected address.', 'foundation-customer-form' );
+		} else {
+			$message = __( 'Lead updated.', 'foundation-customer-form' );
+		}
 		wp_send_json_success( array(
-			'message'       => $email_changed && 'brief' === $record_type ? __( 'Customer details updated. The changed email is now unverified; resend the magic link to verify it.', 'foundation-customer-form' ) : __( 'Lead updated.', 'foundation-customer-form' ),
+			'message'       => $message,
 			'status'        => $status,
 			'status_label'  => $labels[ $status ] ?? ucfirst( str_replace( '_', ' ', $status ) ),
 			'email_changed' => $email_changed,
+			'resend_error'  => $resend_error,
 		) );
 	}
 
@@ -1455,7 +1487,7 @@ class Foundation_Admin {
 				<hr><p class="fpc-admin-eyebrow"><?php esc_html_e( 'Abuse protection', 'foundation-customer-form' ); ?></p>
 				<?php $this->checkbox_field( 'turnstile_enabled', __( 'Enable Cloudflare Turnstile on resume-link sends and final submissions', 'foundation-customer-form' ), ! empty( $settings['turnstile_enabled'] ) ); ?>
 				<?php $this->input_field( 'turnstile_site_key', __( 'Turnstile site key', 'foundation-customer-form' ), $settings['turnstile_site_key'], 'text' ); ?>
-				<?php $this->input_field( 'turnstile_secret_key', __( 'Turnstile secret key', 'foundation-customer-form' ), $settings['turnstile_secret_key'], 'password', false, __( 'Stored in WordPress settings but excluded from calculator configuration exports and never sent to the browser.', 'foundation-customer-form' ) ); ?>
+				<?php $this->input_field( 'turnstile_secret_key', __( 'Turnstile secret key', 'foundation-customer-form' ), '', 'password', false, empty( $settings['turnstile_secret_key'] ) ? __( 'Not set. Excluded from calculator configuration exports and never sent to the browser.', 'foundation-customer-form' ) : __( 'A secret is already saved. Leave blank to keep it, or enter a new value to replace it. Excluded from calculator configuration exports and never sent to the browser.', 'foundation-customer-form' ) ); ?>
 				<?php $this->input_field( 'minimum_interaction_seconds', __( 'Minimum interaction before protected requests (seconds)', 'foundation-customer-form' ), $settings['minimum_interaction_seconds'], 'number' ); ?>
 				<?php $this->input_field( 'magic_link_resend_seconds', __( 'Magic-link resend cooldown (seconds)', 'foundation-customer-form' ), $settings['magic_link_resend_seconds'], 'number' ); ?>
 				<?php $this->input_field( 'magic_link_email_limit_hour', __( 'Magic links per email / hour', 'foundation-customer-form' ), $settings['magic_link_email_limit_hour'], 'number' ); ?>

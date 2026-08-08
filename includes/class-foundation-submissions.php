@@ -128,7 +128,11 @@ final class Foundation_Submissions {
 		update_post_meta( $post_id, $email_key, $email );
 
 		if ( 'brief' === $record_type && strtolower( $old_email ) !== strtolower( $email ) ) {
-			self::revoke_brief_magic_link( $post_id );
+			// The previous magic link is intentionally left intact here. The caller
+			// (Foundation_Admin::ajax_lead_update()) is responsible for sending a
+			// replacement link to the corrected address and only then revoking the
+			// old one, via send_admin_magic_link()'s own send-before-revoke ordering
+			// — so a failed send never strands the customer with no valid link at all.
 			update_post_meta( $post_id, '_foundation_brief_verified', 0 );
 			update_post_meta( $post_id, '_foundation_brief_verified_at', '' );
 			update_post_meta( $post_id, '_foundation_brief_status', 'captured' );

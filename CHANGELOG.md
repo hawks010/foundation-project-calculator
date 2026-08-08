@@ -1,5 +1,33 @@
 # Changelog
 
+## 1.6.2, 8 August 2026
+
+Fixes found during an independent pre-launch QA pass of 1.6.1.
+
+- Fixes the admin email-correction flow (`Foundation_Admin::ajax_lead_update()`): the previous
+  saved-brief magic link is no longer revoked (`Foundation_Submissions::update_lead_contact()`)
+  until a replacement has been generated and successfully emailed
+  (`Foundation_Admin::send_admin_magic_link()`), auto-triggered on a successful email correction
+  instead of requiring a separate manual "Resend" click. A failed send now leaves the previous
+  link fully working and reports the failure back to the admin.
+- Fixes `uninstall.php`: adds a batched delete loop for `foundation_brief` posts (unfinished saved
+  briefs), mirroring the existing loop for completed `foundation_quote` enquiries, and extends the
+  transient-prefix cleanup to include magic-link revocation markers and admin-resend cooldowns.
+- Fixes `foundation_save_quote_draft()`: a new draft now always receives a fresh
+  `foundation_generate_resume_token()` value; a client-supplied token is only reused when it
+  already resolves to an existing brief, closing a path where a well-formed but attacker-chosen
+  token could be accepted verbatim.
+- Fixes the Turnstile secret key field in Advanced settings (`class-foundation-admin.php`): it now
+  renders blank instead of echoing the stored secret's value into the page source, and an empty
+  submission leaves the stored secret unchanged rather than clearing it.
+- Fixes a CSS layout bug: `.foundation-canvas` was missing `height: 100%` under the intro and
+  contact views, so it grew to its full content height instead of respecting its container and
+  scrolling — meaning the "Continue where I left off" local-recovery card could push the CTA and
+  small print below the visible modal with no way to scroll to them on shorter viewports. Also
+  tightens `.foundation-intro-heritage h1` sizing/margin so the opening headline needs less
+  vertical space.
+- Keeps `FOUNDATION_DB_VERSION` at 1.4.0. No schema migration or blueprint reapply is required.
+
 ## 1.6.1, 7 August 2026
 
 - Turns the Enquiries screen into a practical lead-management inbox with clearer card padding, inline workflow states (**New, In progress, Follow up, Waiting, Complete, Archived**), direct follow-up links and magic-link resend controls.

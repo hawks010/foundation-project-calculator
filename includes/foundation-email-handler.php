@@ -363,7 +363,11 @@ function foundation_save_quote_draft() {
 		}
 	}
 
-	if ( ! foundation_is_valid_resume_token( $token ) ) {
+	if ( ! $existing_brief ) {
+		// Always mint a fresh CSPRNG token for a new draft, even if the client
+		// supplied one that merely happens to pass the format check — a
+		// well-formed but attacker-chosen token must never be accepted verbatim,
+		// only a token that already resolves to this visitor's own existing brief.
 		$token = foundation_generate_resume_token();
 	}
 

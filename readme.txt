@@ -4,7 +4,7 @@ Tags: project calculator, estimate, quote, accessibility, lead capture
 Requires at least: 6.4
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.6.1
+Stable tag: 1.6.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -74,6 +74,14 @@ Hide the built-in launch button:
 Custom triggers can use `.foundation-trigger` or `data-foundation-calculator-open` while the shortcode remains on the page.
 
 == Upgrade notice ==
+
+= 1.6.2 =
+
+* Fixes a bug where correcting a customer's email in the lead inbox revoked their saved-brief link without automatically sending a replacement.
+* Fixes plugin uninstall so it also removes unfinished saved briefs, not only completed enquiries.
+* Fixes the anonymous draft-save endpoint so it always issues a fresh private token instead of accepting a client-supplied one.
+* Fixes the Turnstile secret key field so it is never echoed back into the settings form.
+* Fixes a layout bug where the "Continue where I left off" card on the opening screen could push content below the visible area with no way to scroll to it.
 
 = 1.6.1 =
 
@@ -150,6 +158,13 @@ ZIP packaging requires the PHP `ZipArchive` extension. PDF and JSON reports can 
 It is a production candidate. Complete the staging, SMTP, theme, cache, and host checks in the deployment notes before release.
 
 == Changelog ==
+
+= 1.6.2 =
+* Fixes the admin email-correction flow to auto-send a replacement magic link and only revoke the previous one once the replacement is confirmed sent, instead of revoking immediately with resend left as a separate manual step.
+* Fixes plugin uninstall to also purge unfinished saved-brief records and their associated transients, matching the existing behaviour for completed enquiries.
+* Fixes the public draft-save endpoint to always generate a fresh, server-random resume token for a new draft, closing a path where a well-formed client-supplied token could be accepted as-is.
+* Fixes the Turnstile secret key admin field to render blank rather than echoing the stored secret into the page, with leave-blank-to-keep-current semantics on save.
+* Fixes a CSS layout bug on the opening screen where the returning-visitor "Continue where I left off" card could push content past the visible modal height with no way to scroll to it; also tightens the opening headline sizing.
 
 = 1.6.1 =
 * Adds the managed lead inbox workflow controls, customer detail correction, follow-up/resend, delete and archived cleanup.

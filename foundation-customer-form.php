@@ -3,7 +3,7 @@
  * Plugin Name: Foundation Project Calculator
  * Plugin URI: https://github.com/Inkfire-limited/foundation-project-calculator
  * Description: A guided, accessible project calculator with Inkfire pricing, one-off and monthly estimates, tailored-quote routing, secure lead capture and a simple admin dashboard.
- * Version: 1.6.1
+ * Version: 1.6.2
  * Author: Inkfire
  * Text Domain: foundation-customer-form
  * Requires at least: 6.4
@@ -18,7 +18,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 define( 'FOUNDATION_FILE', __FILE__ );
 define( 'FOUNDATION_PATH', plugin_dir_path( __FILE__ ) );
 define( 'FOUNDATION_URL', plugin_dir_url( __FILE__ ) );
-define( 'FOUNDATION_VERSION', '1.6.1' );
+define( 'FOUNDATION_VERSION', '1.6.2' );
 define( 'FOUNDATION_DB_VERSION', '1.4.0' );
 
 require_once FOUNDATION_PATH . 'includes/foundation-core.php';
