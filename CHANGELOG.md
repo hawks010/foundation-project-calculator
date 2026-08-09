@@ -2,9 +2,9 @@
 
 ## 1.6.4, 9 August 2026
 
-- Reduces the opening **Your project. One clear plan.** headline to a more balanced desktop scale.
-  On wide desktop viewports the forced line break is removed and the statement stays on one line;
-  narrower layouts retain the established two-line composition.
+- Reduces the opening **Your project. One clear plan.** headline to a capped 2.5rem scale and
+  removes the forced line break. The statement uses normal wrapping only where a narrower layout
+  needs it.
 - Updates the plugin version so browsers receive the new frontend stylesheet rather than a cached
   1.6.3 asset. No database migration or blueprint reapply is required.
 

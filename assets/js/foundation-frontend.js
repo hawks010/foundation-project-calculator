@@ -516,7 +516,7 @@
 		getCanvas().innerHTML = '<section class="foundation-intro foundation-intro-heritage">' + renderMobileBrandHero() + '<div class="foundation-intro-copy">' +
 			'<p class="foundation-intro-eyebrow">Project brief</p>' +
 			'<div class="foundation-intro-stage-rail" aria-label="Three simple stages"><span class="is-active"><b>1</b>Brief</span><i aria-hidden="true"></i><span><b>2</b>Plan</span><i aria-hidden="true"></i><span><b>3</b>Quote</span></div>' +
-			'<h1>Your project.<br><span>One clear plan.</span></h1>' +
+			'<h1>Your project. <span>One clear plan.</span></h1>' +
 			'<p class="foundation-intro-lede">Tell us what you are building, where you are stuck, or what support you need. We will guide you through only the relevant questions and build your estimate as you go.</p>' +
 			'<div class="foundation-intro-benefits"><span><b aria-hidden="true">✓</b> One joined-up estimate</span><span><b aria-hidden="true">✓</b> Only relevant questions</span><span><b aria-hidden="true">✓</b> Save and return anytime</span></div>' +
 			welcome +

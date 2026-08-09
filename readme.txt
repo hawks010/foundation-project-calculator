@@ -77,7 +77,7 @@ Custom triggers can use `.foundation-trigger` or `data-foundation-calculator-ope
 
 = 1.6.4 =
 
-* Makes the opening Inkfire Project Brief headline more balanced on desktop and presents it on one line when the split-panel layout has sufficient space.
+* Caps the opening Inkfire Project Brief headline at 2.5rem, removes its forced line break, and allows natural wrapping only where needed.
 
 = 1.6.3 =
 
