@@ -4,7 +4,7 @@ Tags: project calculator, estimate, quote, accessibility, lead capture
 Requires at least: 6.4
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.6.3
+Stable tag: 1.6.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -74,6 +74,10 @@ Hide the built-in launch button:
 Custom triggers can use `.foundation-trigger` or `data-foundation-calculator-open` while the shortcode remains on the page.
 
 == Upgrade notice ==
+
+= 1.6.4 =
+
+* Makes the opening Inkfire Project Brief headline more balanced on desktop and presents it on one line when the split-panel layout has sufficient space.
 
 = 1.6.3 =
 
@@ -168,6 +172,10 @@ ZIP packaging requires the PHP `ZipArchive` extension. PDF and JSON reports can 
 It is a production candidate. Complete the staging, SMTP, theme, cache, and host checks in the deployment notes before release.
 
 == Changelog ==
+
+= 1.6.4 =
+
+* Reduces the opening Inkfire Project Brief headline on desktop and removes its forced line break only on sufficiently wide viewports. Narrower layouts retain the two-line composition.
 
 = 1.6.3 =
 * Replaces the plain-text PDF with a branded, laid-out project estimate and fixes missing currency symbols.
