@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.4, 9 August 2026
+
+- Reduces the opening **Your project. One clear plan.** headline to a capped 2.5rem scale and
+  removes the forced line break. The statement uses normal wrapping only where a narrower layout
+  needs it.
+- Updates the plugin version so browsers receive the new frontend stylesheet rather than a cached
+  1.6.3 asset. No database migration or blueprint reapply is required.
+
 ## 1.6.3, 9 August 2026
 
 - Rewrites the PDF attachment as a branded, properly laid-out document: masthead, contact block,
