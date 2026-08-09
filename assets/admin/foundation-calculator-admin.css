@@ -750,3 +750,38 @@
 	outline: 3px solid rgba(13, 121, 102, .26);
 	outline-offset: 2px;
 }
+
+/* Success screen wording and social links, edited from the Journey tab. */
+.fpc-success-copy-form {
+	border-top: 1px solid #dfe4ea;
+	margin-top: 26px;
+	padding-top: 22px;
+}
+
+.fpc-success-copy-heading {
+	margin: 0 0 14px;
+}
+
+.fpc-success-copy-heading:not(:first-child) {
+	margin-top: 26px;
+}
+
+.fpc-success-copy-heading h4 {
+	font-size: 15px;
+	margin: 0 0 4px;
+}
+
+.fpc-success-copy-heading p {
+	color: #5e6475;
+	margin: 0;
+}
+
+.fpc-success-social-grid {
+	display: grid;
+	gap: 14px 18px;
+	grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.fpc-success-copy-actions {
+	margin: 22px 0 0;
+}

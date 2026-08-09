@@ -763,15 +763,7 @@ function foundation_generate_email_html( $contact, $summary, $quote, $is_admin, 
 	$logo_url      = $settings['logo_url'] ?? '';
 	$portfolio_url = $settings['portfolio_url'] ?? '';
 	$quote_mode    = foundation_is_quote_mode_enabled( $settings );
-	$social_links  = array_filter(
-		array(
-			'LinkedIn'  => $settings['linkedin_url'] ?? '',
-			'Twitter/X' => $settings['twitter_url'] ?? '',
-			'Facebook'  => $settings['facebook_url'] ?? '',
-			'Instagram' => $settings['instagram_url'] ?? '',
-			'TikTok'    => $settings['tiktok_url'] ?? '',
-		)
-	);
+	$social_links  = foundation_get_social_links( $settings );
 
 	ob_start();
 	?>

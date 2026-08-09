@@ -4,7 +4,7 @@ Tags: project calculator, estimate, quote, accessibility, lead capture
 Requires at least: 6.4
 Tested up to: 6.9
 Requires PHP: 7.4
-Stable tag: 1.6.2
+Stable tag: 1.6.3
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -74,6 +74,16 @@ Hide the built-in launch button:
 Custom triggers can use `.foundation-trigger` or `data-foundation-calculator-open` while the shortcode remains on the page.
 
 == Upgrade notice ==
+
+= 1.6.3 =
+
+* Replaces the plain-text PDF with a branded, laid-out project estimate and fixes missing currency symbols.
+* Sends a single PDF instead of a ZIP containing a PDF, JSON and text file.
+* Adds a thank-you message, expected reply time and social links to the final screen.
+* Makes the final-screen wording and social links editable from the Customer Journey tab.
+* Fixes the final screen looking empty when no closing image is set.
+* Fixes the alignment of the consent and marketing tick boxes.
+* Rewrites the Need help panel in plain English.
 
 = 1.6.2 =
 
@@ -158,6 +168,15 @@ ZIP packaging requires the PHP `ZipArchive` extension. PDF and JSON reports can 
 It is a production candidate. Complete the staging, SMTP, theme, cache, and host checks in the deployment notes before release.
 
 == Changelog ==
+
+= 1.6.3 =
+* Replaces the plain-text PDF with a branded, laid-out project estimate and fixes missing currency symbols.
+* Sends a single PDF instead of a ZIP containing a PDF, JSON and text file.
+* Adds a thank-you message, expected reply time and social links to the final screen.
+* Makes the final-screen wording and social links editable from the Customer Journey tab.
+* Fixes the final screen looking empty when no closing image is set.
+* Fixes the alignment of the consent and marketing tick boxes.
+* Rewrites the Need help panel in plain English.
 
 = 1.6.2 =
 * Fixes the admin email-correction flow to auto-send a replacement magic link and only revoke the previous one once the replacement is confirmed sent, instead of revoking immediately with resend left as a separate manual step.

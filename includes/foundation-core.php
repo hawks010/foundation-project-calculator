@@ -71,6 +71,8 @@ function foundation_get_default_settings() {
 		'customer_subject'              => 'Your Inkfire planning estimate',
 		'customer_intro'                => 'Thanks for using the Inkfire project calculator. We have received your answers safely and will review anything that needs a tailored quote.',
 		'success_message'               => 'Your estimate and project details have been sent safely. Our team will review any tailored-quote items and follow up.',
+		'success_response_time'         => 'A member of the team will get back to you within 1 to 3 working days.',
+		'success_follow_heading'        => 'Follow along in the meantime',
 		'quote_mode_enabled'            => 0,
 		'launch_button_label'           => 'Build your estimate',
 		'wizard_title'                  => 'Inkfire Project Calculator',
@@ -1424,60 +1426,605 @@ function foundation_get_report_filename( $reference, $extension ) {
 	return $stem . '.' . $extension;
 }
 
-function foundation_pdf_escape_text( $text ) {
-	$text = remove_accents( (string) $text );
-	$text = preg_replace( '/[^\x20-\x7E]/', '?', $text );
-	$text = str_replace( array( '\\', '(', ')' ), array( '\\\\', '\\(', '\\)' ), $text );
-	return $text;
+/**
+ * Convert UTF-8 text into the Windows-1252 byte range used by the PDF fonts.
+ *
+ * The report fonts are declared with /WinAnsiEncoding so currency symbols such
+ * as the pound sign survive into the finished document. Earlier releases
+ * stripped every non-ASCII byte, which silently removed the currency symbol
+ * from customer-facing estimates.
+ */
+/**
+ * Collect the configured social profiles as an ordered label => URL map.
+ *
+ * Shared by the customer email and the on-screen success panel so both stay in
+ * step with whatever an administrator has filled in.
+ *
+ * @return array<string,string>
+ */
+function foundation_get_social_links( $settings = null ) {
+	$settings = is_array( $settings ) ? $settings : foundation_get_settings();
+
+	$candidates = array(
+		'LinkedIn'  => $settings['linkedin_url'] ?? '',
+		'Instagram' => $settings['instagram_url'] ?? '',
+		'Facebook'  => $settings['facebook_url'] ?? '',
+		'TikTok'    => $settings['tiktok_url'] ?? '',
+		'X'         => $settings['twitter_url'] ?? '',
+	);
+
+	$links = array();
+	foreach ( $candidates as $label => $url ) {
+		$url = esc_url_raw( trim( (string) $url ) );
+		if ( '' !== $url ) {
+			$links[ $label ] = $url;
+		}
+	}
+
+	return $links;
 }
 
-function foundation_generate_pdf_attachment( $contact, $summary, $quote, $settings, $reference = '' ) {
-	$lines      = foundation_flatten_summary_for_export( $contact, $summary, $quote, $settings, $reference );
-	$chunks     = array_chunk( $lines, 42 );
-	$page_count = max( 1, count( $chunks ) );
-	$objects    = array();
-	$object_index = 1;
+function foundation_pdf_win1252( $text ) {
+	$text = (string) $text;
 
-	$catalog_obj = $object_index++;
-	$pages_obj   = $object_index++;
-	$font_obj    = $object_index++;
-	$page_objects = array();
+	// Fold typographic punctuation that has no useful Windows-1252 equivalent.
+	$text = strtr(
+		$text,
+		array(
+			"\xE2\x80\x98" => "'",
+			"\xE2\x80\x99" => "'",
+			"\xE2\x80\x9C" => '"',
+			"\xE2\x80\x9D" => '"',
+			"\xE2\x80\x93" => '-',
+			"\xE2\x80\x94" => '-',
+			"\xE2\x80\xA6" => '...',
+			"\xC2\xA0"     => ' ',
+		)
+	);
+
+	if ( function_exists( 'mb_convert_encoding' ) ) {
+		$converted = @mb_convert_encoding( $text, 'Windows-1252', 'UTF-8' ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		if ( is_string( $converted ) ) {
+			return $converted;
+		}
+	}
+
+	// Fallback for hosts without mbstring: keep the symbols we actually emit.
+	$text = strtr( $text, array( "\xC2\xA3" => "\xA3", "\xE2\x82\xAC" => "\x80" ) );
+	$text = remove_accents( $text );
+
+	return (string) preg_replace( '/[^\x20-\x7E\xA3\x80]/', '', $text );
+}
+
+/**
+ * Escape a string for inclusion in a PDF literal string.
+ */
+function foundation_pdf_escape_text( $text ) {
+	$text = foundation_pdf_win1252( $text );
+
+	return str_replace( array( '\\', '(', ')' ), array( '\\\\', '\\(', '\\)' ), $text );
+}
+
+/**
+ * Helvetica advance widths, in 1/1000 em, keyed by Windows-1252 byte value.
+ *
+ * Real metrics keep wrapped text inside the page and let the money column be
+ * right-aligned accurately instead of guessed.
+ */
+function foundation_pdf_widths( $bold = false ) {
+	static $cache = array();
+	$key = $bold ? 'bold' : 'regular';
+
+	if ( isset( $cache[ $key ] ) ) {
+		return $cache[ $key ];
+	}
+
+	// Digit widths are applied separately below, so they are omitted here.
+	$regular = ' 278!278"355#556$556%889&667\'191(333)333*389+584,278-333.278/278:278;278<584=584>584?556@1015A667B667C722D722E667F611G778H722I278J500K667L556M833N722O778P667Q778R722S667T611U722V667W944X667Y667Z611[278\\278]278^469_556`333a556b556c500d556e556f278g556h556i222j222k500l222m833n556o556p556q556r333s500t278u556v500w722x500y500z500{334|260}334~584';
+	$boldm   = ' 278!333"474#556$556%889&722\'238(333)333*389+584,278-333.278/278:333;333<584=584>584?611@975A722B722C722D722E667F611G778H722I278J556K722L611M833N722O778P667Q778R722S667T611U722V667W944X667Y667Z611[333\\278]333^584_556`333a556b611c556d611e556f333g611h611i278j278k556l278m889n611o611p611q611r389s556t333u611v556w778x556y556z500{389|280}389~584';
+
+    $source = $bold ? $boldm : $regular;
+	$widths = array();
+	$length = strlen( $source );
+	$i      = 0;
+
+	while ( $i < $length ) {
+		$char = $source[ $i ];
+		$i++;
+		$number = '';
+		while ( $i < $length && ctype_digit( $source[ $i ] ) ) {
+			$number .= $source[ $i ];
+			$i++;
+		}
+		if ( '' !== $number ) {
+			$widths[ ord( $char ) ] = (int) $number;
+		}
+	}
+
+	// Digits share a single width in both Helvetica cuts.
+	for ( $digit = 48; $digit <= 57; $digit++ ) {
+		$widths[ $digit ] = 556;
+	}
+	$widths[ 0xA3 ] = 556; // Pound sign.
+	$widths[ 0x80 ] = 556; // Euro sign.
+
+	$cache[ $key ] = $widths;
+
+	return $widths;
+}
+
+/**
+ * Measure a string at a given point size.
+ */
+function foundation_pdf_text_width( $text, $size, $bold = false ) {
+	$bytes  = foundation_pdf_win1252( $text );
+	$widths = foundation_pdf_widths( $bold );
+	$total  = 0;
+	$length = strlen( $bytes );
+
+	for ( $i = 0; $i < $length; $i++ ) {
+		$code   = ord( $bytes[ $i ] );
+		$total += isset( $widths[ $code ] ) ? $widths[ $code ] : 500;
+	}
+
+	return ( $total / 1000 ) * $size;
+}
+
+/**
+ * Wrap a string to a maximum rendered width, breaking over-long words.
+ *
+ * @return array<int,string>
+ */
+function foundation_pdf_wrap( $text, $size, $bold, $max_width ) {
+	$text = trim( preg_replace( '/\s+/', ' ', (string) $text ) );
+
+	if ( '' === $text ) {
+		return array( '' );
+	}
+
+	$lines   = array();
+	$current = '';
+
+	foreach ( explode( ' ', $text ) as $word ) {
+		$candidate = '' === $current ? $word : $current . ' ' . $word;
+
+		if ( foundation_pdf_text_width( $candidate, $size, $bold ) <= $max_width ) {
+			$current = $candidate;
+			continue;
+		}
+
+		if ( '' !== $current ) {
+			$lines[] = $current;
+			$current = '';
+		}
+
+		// Hard-break a single word that cannot fit on its own line.
+		while ( foundation_pdf_text_width( $word, $size, $bold ) > $max_width && strlen( $word ) > 1 ) {
+			$cut = strlen( $word );
+			while ( $cut > 1 && foundation_pdf_text_width( substr( $word, 0, $cut ), $size, $bold ) > $max_width ) {
+				$cut--;
+			}
+			$lines[] = substr( $word, 0, $cut );
+			$word    = substr( $word, $cut );
+		}
+
+		$current = $word;
+	}
+
+	if ( '' !== $current ) {
+		$lines[] = $current;
+	}
+
+	return empty( $lines ) ? array( '' ) : $lines;
+}
+
+/**
+ * Report palette, expressed as PDF RGB triplets.
+ */
+function foundation_pdf_colour( $name ) {
+	$palette = array(
+		'brand'  => array( 0.027, 0.369, 0.325 ),
+		'accent' => array( 0.043, 0.447, 0.373 ),
+		'ink'    => array( 0.086, 0.125, 0.180 ),
+		'muted'  => array( 0.369, 0.392, 0.459 ),
+		'rule'   => array( 0.875, 0.894, 0.918 ),
+		'soft'   => array( 0.961, 0.969, 0.976 ),
+		'white'  => array( 1, 1, 1 ),
+	);
+
+	return isset( $palette[ $name ] ) ? $palette[ $name ] : $palette['ink'];
+}
+
+/**
+ * Emit a filled rectangle onto the current page.
+ */
+function foundation_pdf_rect( &$doc, $x, $y, $width, $height, $colour ) {
+	list( $r, $g, $b ) = foundation_pdf_colour( $colour );
+	$doc['ops'][] = sprintf( '%.3F %.3F %.3F rg %.2F %.2F %.2F %.2F re f', $r, $g, $b, $x, $y, $width, $height );
+}
+
+/**
+ * Emit a single run of text onto the current page.
+ */
+function foundation_pdf_text( &$doc, $text, $x, $y, $size, $bold = false, $colour = 'ink' ) {
+	list( $r, $g, $b ) = foundation_pdf_colour( $colour );
+	$doc['ops'][] = sprintf(
+		'BT /%s %.1F Tf %.3F %.3F %.3F rg 1 0 0 1 %.2F %.2F Tm (%s) Tj ET',
+		$bold ? 'F2' : 'F1',
+		$size,
+		$r,
+		$g,
+		$b,
+		$x,
+		$y,
+		foundation_pdf_escape_text( $text )
+	);
+}
+
+/**
+ * Start a new page, drawing the masthead on the first one and a slim rule after.
+ */
+function foundation_pdf_begin_page( &$doc ) {
+	if ( ! empty( $doc['ops'] ) ) {
+		$doc['pages'][] = $doc['ops'];
+	}
+
+	$doc['ops'] = array();
+	$doc['page']++;
+
+	if ( 1 === $doc['page'] ) {
+		foundation_pdf_rect( $doc, 0, FOUNDATION_PDF_PAGE_H - 108, FOUNDATION_PDF_PAGE_W, 108, 'brand' );
+		foundation_pdf_text( $doc, 'Project estimate', FOUNDATION_PDF_MARGIN, FOUNDATION_PDF_PAGE_H - 52, 21, true, 'white' );
+
+		if ( '' !== $doc['reference'] ) {
+			foundation_pdf_text( $doc, 'Reference ' . $doc['reference'], FOUNDATION_PDF_MARGIN, FOUNDATION_PDF_PAGE_H - 74, 10.5, false, 'white' );
+		}
+
+		foundation_pdf_text( $doc, $doc['generated'], FOUNDATION_PDF_MARGIN, FOUNDATION_PDF_PAGE_H - 90, 9.5, false, 'white' );
+
+		$brand_width = foundation_pdf_text_width( $doc['brand'], 15, true );
+		foundation_pdf_text( $doc, $doc['brand'], FOUNDATION_PDF_PAGE_W - FOUNDATION_PDF_MARGIN - $brand_width, FOUNDATION_PDF_PAGE_H - 52, 15, true, 'white' );
+
+		$doc['y'] = FOUNDATION_PDF_PAGE_H - 108 - 40;
+
+		return;
+	}
+
+	foundation_pdf_rect( $doc, 0, FOUNDATION_PDF_PAGE_H - 44, FOUNDATION_PDF_PAGE_W, 4, 'brand' );
+	$label = 'Project estimate' . ( '' !== $doc['reference'] ? ' - ' . $doc['reference'] : '' );
+	foundation_pdf_text( $doc, $label, FOUNDATION_PDF_MARGIN, FOUNDATION_PDF_PAGE_H - 64, 9.5, false, 'muted' );
+	$doc['y'] = FOUNDATION_PDF_PAGE_H - 92;
+}
+
+/**
+ * Break to a new page when the requested block will not fit.
+ */
+function foundation_pdf_ensure_space( &$doc, $needed ) {
+	if ( $doc['y'] - $needed < FOUNDATION_PDF_BOTTOM ) {
+		foundation_pdf_begin_page( $doc );
+	}
+}
+
+/**
+ * Draw a section heading with an underscore rule.
+ */
+function foundation_pdf_heading( &$doc, $title ) {
+	foundation_pdf_ensure_space( $doc, 46 );
+	foundation_pdf_text( $doc, strtoupper( $title ), FOUNDATION_PDF_MARGIN, $doc['y'], 9.5, true, 'accent' );
+	$doc['y'] -= 7;
+	foundation_pdf_rect( $doc, FOUNDATION_PDF_MARGIN, $doc['y'], FOUNDATION_PDF_CONTENT_W, 0.8, 'rule' );
+	$doc['y'] -= 15;
+}
+
+/**
+ * Draw a wrapped label/value pair as a question and answer.
+ */
+function foundation_pdf_qa( &$doc, $label, $value ) {
+	$label_lines = foundation_pdf_wrap( $label, 9, false, FOUNDATION_PDF_CONTENT_W );
+	$value_lines = foundation_pdf_wrap( '' === trim( (string) $value ) ? '-' : $value, 10.5, true, FOUNDATION_PDF_CONTENT_W );
+
+	foundation_pdf_ensure_space( $doc, ( count( $label_lines ) * 11 ) + ( count( $value_lines ) * 13 ) + 7 );
+
+	foreach ( $label_lines as $line ) {
+		foundation_pdf_text( $doc, $line, FOUNDATION_PDF_MARGIN, $doc['y'], 9, false, 'muted' );
+		$doc['y'] -= 11;
+	}
+
+	foreach ( $value_lines as $line ) {
+		foundation_pdf_text( $doc, $line, FOUNDATION_PDF_MARGIN, $doc['y'], 10.5, true, 'ink' );
+		$doc['y'] -= 13;
+	}
+
+	$doc['y'] -= 5;
+}
+
+/**
+ * Draw one itemised money row with a right-aligned amount.
+ */
+function foundation_pdf_money_row( &$doc, $label, $amount, $shaded ) {
+	$amount_width = foundation_pdf_text_width( $amount, 10.5, true );
+	$label_width  = FOUNDATION_PDF_CONTENT_W - $amount_width - 34;
+	$label_lines  = foundation_pdf_wrap( $label, 10.5, false, max( 80, $label_width ) );
+	$row_height   = max( 26, ( count( $label_lines ) * 13 ) + 13 );
+
+	foundation_pdf_ensure_space( $doc, $row_height );
+
+	if ( $shaded ) {
+		foundation_pdf_rect( $doc, FOUNDATION_PDF_MARGIN, $doc['y'] - $row_height + 17, FOUNDATION_PDF_CONTENT_W, $row_height, 'soft' );
+	}
+
+	$text_y = $doc['y'];
+	foreach ( $label_lines as $line ) {
+		foundation_pdf_text( $doc, $line, FOUNDATION_PDF_MARGIN + 12, $text_y, 10.5, false, 'ink' );
+		$text_y -= 13;
+	}
+
+	foundation_pdf_text(
+		$doc,
+		$amount,
+		FOUNDATION_PDF_PAGE_W - FOUNDATION_PDF_MARGIN - 12 - $amount_width,
+		$doc['y'],
+		10.5,
+		true,
+		'ink'
+	);
+
+	$doc['y'] -= $row_height;
+}
+
+/**
+ * Draw an emphasised total block.
+ */
+function foundation_pdf_total( &$doc, $label, $amount, $note ) {
+	foundation_pdf_ensure_space( $doc, 58 );
+
+	foundation_pdf_rect( $doc, FOUNDATION_PDF_MARGIN, $doc['y'] - 38, FOUNDATION_PDF_CONTENT_W, 52, 'brand' );
+	foundation_pdf_text( $doc, strtoupper( $label ), FOUNDATION_PDF_MARGIN + 16, $doc['y'], 9, true, 'white' );
+
+	$amount_width = foundation_pdf_text_width( $amount, 19, true );
+	foundation_pdf_text( $doc, $amount, FOUNDATION_PDF_PAGE_W - FOUNDATION_PDF_MARGIN - 16 - $amount_width, $doc['y'] - 16, 19, true, 'white' );
+	foundation_pdf_text( $doc, $note, FOUNDATION_PDF_MARGIN + 16, $doc['y'] - 26, 9, false, 'white' );
+
+	$doc['y'] -= 66;
+}
+
+/**
+ * Draw a paragraph of supporting copy.
+ */
+function foundation_pdf_paragraph( &$doc, $text, $colour = 'muted', $size = 9.5 ) {
+	foreach ( foundation_pdf_wrap( $text, $size, false, FOUNDATION_PDF_CONTENT_W ) as $line ) {
+		foundation_pdf_ensure_space( $doc, 16 );
+		foundation_pdf_text( $doc, $line, FOUNDATION_PDF_MARGIN, $doc['y'], $size, false, $colour );
+		$doc['y'] -= 13;
+	}
+
+	$doc['y'] -= 6;
+}
+
+/**
+ * Build the branded single-document project estimate.
+ *
+ * The same PDF is sent to the customer and to the Inkfire team, so it reads as
+ * a plain-English record of the enquiry rather than a technical dump.
+ */
+function foundation_generate_pdf_attachment( $contact, $summary, $quote, $settings, $reference = '' ) {
+	if ( ! defined( 'FOUNDATION_PDF_PAGE_W' ) ) {
+		define( 'FOUNDATION_PDF_PAGE_W', 595.0 );
+		define( 'FOUNDATION_PDF_PAGE_H', 842.0 );
+		define( 'FOUNDATION_PDF_MARGIN', 46.0 );
+		define( 'FOUNDATION_PDF_CONTENT_W', 503.0 );
+		define( 'FOUNDATION_PDF_BOTTOM', 68.0 );
+	}
+
+	$quote      = is_array( $quote ) ? $quote : array();
+	$currency   = $settings['currency_symbol'] ?? '£';
+	$quote_mode = foundation_is_quote_mode_enabled( $settings );
+
+	$doc = array(
+		'pages'     => array(),
+		'ops'       => array(),
+		'page'      => 0,
+		'y'         => 0.0,
+		'reference' => (string) $reference,
+		'brand'     => wp_strip_all_tags( (string) ( $settings['company_name'] ?? get_bloginfo( 'name' ) ) ),
+		'generated' => 'Prepared ' . gmdate( 'j F Y' ),
+	);
+
+	if ( '' === trim( $doc['brand'] ) ) {
+		$doc['brand'] = 'Inkfire';
+	}
+
+	foundation_pdf_begin_page( $doc );
+
+	// --- Who the estimate is for -------------------------------------------
+	foundation_pdf_heading( $doc, 'Prepared for' );
+
+	$name    = wp_strip_all_tags( (string) ( $contact['name'] ?? '' ) );
+	$company = wp_strip_all_tags( (string) ( $contact['company'] ?? '' ) );
+	$headline = '' !== $company && $company !== $name ? $name . '  -  ' . $company : $name;
+
+	if ( '' !== trim( $headline ) ) {
+		foundation_pdf_ensure_space( $doc, 26 );
+		foundation_pdf_text( $doc, $headline, FOUNDATION_PDF_MARGIN, $doc['y'], 13, true, 'ink' );
+		$doc['y'] -= 20;
+	}
+
+	foreach ( array(
+		'Email'   => $contact['email'] ?? '',
+		'Phone'   => $contact['phone'] ?? '',
+		'Website' => $contact['website'] ?? '',
+	) as $label => $value ) {
+		$value = wp_strip_all_tags( (string) $value );
+		if ( '' === trim( $value ) ) {
+			continue;
+		}
+		foundation_pdf_ensure_space( $doc, 16 );
+		foundation_pdf_text( $doc, $label, FOUNDATION_PDF_MARGIN, $doc['y'], 9.5, false, 'muted' );
+		foundation_pdf_text( $doc, $value, FOUNDATION_PDF_MARGIN + 64, $doc['y'], 10, false, 'ink' );
+		$doc['y'] -= 15;
+	}
+
+	$notes = trim( wp_strip_all_tags( (string) ( $contact['notes'] ?? '' ) ) );
+	if ( '' !== $notes ) {
+		$doc['y'] -= 8;
+		foundation_pdf_ensure_space( $doc, 20 );
+		foundation_pdf_text( $doc, 'In their own words', FOUNDATION_PDF_MARGIN, $doc['y'], 9.5, false, 'muted' );
+		$doc['y'] -= 15;
+		foundation_pdf_paragraph( $doc, $notes, 'ink', 10.5 );
+	}
+
+	$doc['y'] -= 10;
+
+	// --- What they asked for ------------------------------------------------
+	$rows = array();
+	foreach ( (array) $summary as $row ) {
+		$label = trim( wp_strip_all_tags( (string) ( $row['label'] ?? '' ) ) );
+		$value = trim( wp_strip_all_tags( (string) ( $row['value_text'] ?? ( $row['value'] ?? '' ) ) ) );
+		if ( '' === $label && '' === $value ) {
+			continue;
+		}
+		$rows[] = array(
+			'section' => trim( wp_strip_all_tags( (string) ( $row['section'] ?? '' ) ) ),
+			'label'   => $label,
+			'value'   => $value,
+		);
+	}
+
+	if ( ! empty( $rows ) ) {
+		foundation_pdf_heading( $doc, 'What they told us' );
+		$current_section = null;
+
+		foreach ( $rows as $row ) {
+			if ( '' !== $row['section'] && $row['section'] !== $current_section ) {
+				$current_section = $row['section'];
+				foundation_pdf_ensure_space( $doc, 30 );
+				$doc['y'] -= 2;
+				foundation_pdf_text( $doc, $current_section, FOUNDATION_PDF_MARGIN, $doc['y'], 8.5, true, 'accent' );
+				$doc['y'] -= 14;
+			}
+			foundation_pdf_qa( $doc, $row['label'], $row['value'] );
+		}
+
+		$doc['y'] -= 6;
+	}
+
+	// --- The numbers --------------------------------------------------------
+	foundation_pdf_heading( $doc, 'Estimate' );
+
+	if ( $quote_mode ) {
+		foundation_pdf_paragraph( $doc, 'Quote-only mode was enabled, so calculated prices were not shown to the customer. The Inkfire team will prepare pricing manually.', 'ink', 10.5 );
+	} else {
+		$line_items = (array) ( $quote['line_items'] ?? array() );
+
+		if ( ! empty( $line_items ) ) {
+			$shaded = false;
+			foreach ( $line_items as $item ) {
+				$label  = wp_strip_all_tags( (string) ( $item['label'] ?? 'Service' ) );
+				$amount = foundation_format_quote_range( $item['min'] ?? 0, $item['max'] ?? 0, $currency );
+				$amount .= 'monthly' === ( $item['billing'] ?? '' ) ? ' / month' : '';
+				foundation_pdf_money_row( $doc, $label, $amount, $shaded );
+				$shaded = ! $shaded;
+			}
+			$doc['y'] -= 14;
+		}
+
+		$has_totals = false;
+
+		if ( ! empty( $quote['one_off_max'] ) ) {
+			foundation_pdf_total(
+				$doc,
+				'One-off total',
+				foundation_format_quote_range( $quote['one_off_min'] ?? 0, $quote['one_off_max'] ?? 0, $currency ),
+				'Excluding VAT'
+			);
+			$has_totals = true;
+		}
+
+		if ( ! empty( $quote['monthly_max'] ) ) {
+			foundation_pdf_total(
+				$doc,
+				'Monthly total',
+				foundation_format_quote_range( $quote['monthly_min'] ?? 0, $quote['monthly_max'] ?? 0, $currency ),
+				'Per month, excluding VAT'
+			);
+			$has_totals = true;
+		}
+
+		if ( ! $has_totals && empty( $line_items ) ) {
+			foundation_pdf_paragraph( $doc, 'No automatic price was available for this combination of services. The Inkfire team will follow up with a tailored quote.', 'ink', 10.5 );
+		}
+	}
+
+	// --- Anything needing a human -------------------------------------------
+	$manual_items = (array) ( $quote['manual_items'] ?? array() );
+	if ( ! empty( $manual_items ) ) {
+		foundation_pdf_heading( $doc, 'Needs a tailored quote' );
+		foreach ( $manual_items as $item ) {
+			foundation_pdf_qa(
+				$doc,
+				wp_strip_all_tags( (string) ( $item['note'] ?? 'Scope to be confirmed with the customer.' ) ),
+				wp_strip_all_tags( (string) ( $item['label'] ?? 'Service' ) )
+			);
+		}
+	}
+
+	// --- Small print --------------------------------------------------------
+	$doc['y'] -= 4;
+	foundation_pdf_ensure_space( $doc, 40 );
+	foundation_pdf_rect( $doc, FOUNDATION_PDF_MARGIN, $doc['y'] + 12, FOUNDATION_PDF_CONTENT_W, 0.8, 'rule' );
+	$doc['y'] -= 6;
+
+	foundation_pdf_paragraph( $doc, wp_strip_all_tags( (string) ( $settings['vat_note'] ?? 'All prices are shown excluding VAT. VAT will be added where applicable.' ) ) );
+
+	$disclaimer = trim( wp_strip_all_tags( (string) ( $settings['estimate_disclaimer'] ?? '' ) ) );
+	if ( '' !== $disclaimer ) {
+		foundation_pdf_paragraph( $doc, $disclaimer );
+	}
+
+	// Flush the final page.
+	if ( ! empty( $doc['ops'] ) ) {
+		$doc['pages'][] = $doc['ops'];
+	}
+
+	$page_total = max( 1, count( $doc['pages'] ) );
+
+	// --- Assemble the PDF ----------------------------------------------------
+	$object_index    = 1;
+	$catalog_obj     = $object_index++;
+	$pages_obj       = $object_index++;
+	$font_obj        = $object_index++;
+	$font_bold_obj   = $object_index++;
+	$page_objects    = array();
 	$content_objects = array();
 
-	foreach ( $chunks as $chunk ) {
+	foreach ( $doc['pages'] as $unused ) {
 		$page_objects[]    = $object_index++;
 		$content_objects[] = $object_index++;
 	}
 
+	$objects = array();
 	$objects[ $catalog_obj ] = '<< /Type /Catalog /Pages ' . $pages_obj . ' 0 R >>';
 	$kids = array_map( static function ( $obj_num ) { return $obj_num . ' 0 R'; }, $page_objects );
-	$objects[ $pages_obj ] = '<< /Type /Pages /Kids [ ' . implode( ' ', $kids ) . ' ] /Count ' . $page_count . ' >>';
-	$objects[ $font_obj ]  = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+	$objects[ $pages_obj ]     = '<< /Type /Pages /Kids [ ' . implode( ' ', $kids ) . ' ] /Count ' . $page_total . ' >>';
+	$objects[ $font_obj ]      = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
+	$objects[ $font_bold_obj ] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
 
-	foreach ( $chunks as $index => $chunk ) {
-		$stream   = array( 'BT', '/F1 16 Tf', '50 790 Td', '18 TL' );
-		$title    = foundation_pdf_escape_text( 'Project Estimate - ' . ( $reference ? $reference : ( $contact['company'] ?? $contact['name'] ?? 'Submission' ) ) );
-		$stream[] = '(' . $title . ') Tj';
-		$stream[] = 'T*';
-		$stream[] = '/F1 10 Tf';
-		$stream[] = '13 TL';
-		$stream[] = '(Page ' . ( $index + 1 ) . ' of ' . $page_count . ') Tj';
-		$stream[] = 'T*';
-		$stream[] = 'T*';
-		foreach ( $chunk as $line ) {
-			// Wrap long ASCII lines to avoid running beyond the page edge.
-			$wrapped = explode( "\n", wordwrap( (string) $line, 88, "\n", true ) );
-			foreach ( $wrapped as $wrapped_line ) {
-				$stream[] = '(' . foundation_pdf_escape_text( $wrapped_line ) . ') Tj';
-				$stream[] = 'T*';
-			}
-		}
-		$stream[]   = 'ET';
-		$stream_text = implode( "\n", $stream );
-		$content_obj = $content_objects[ $index ];
-		$page_obj    = $page_objects[ $index ];
-		$objects[ $content_obj ] = '<< /Length ' . strlen( $stream_text ) . ' >>' . "\nstream\n" . $stream_text . "\nendstream";
-		$objects[ $page_obj ]    = '<< /Type /Page /Parent ' . $pages_obj . ' 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 ' . $font_obj . ' 0 R >> >> /Contents ' . $content_obj . ' 0 R >>';
+	foreach ( $doc['pages'] as $index => $ops ) {
+		$footer = sprintf( 'Page %d of %d', $index + 1, $page_total );
+		$footer_width = foundation_pdf_text_width( $footer, 8.5, false );
+		$ops[] = sprintf(
+			'BT /F1 8.5 Tf %.3F %.3F %.3F rg 1 0 0 1 %.2F %.2F Tm (%s) Tj ET',
+			0.369,
+			0.392,
+			0.459,
+			( FOUNDATION_PDF_PAGE_W - $footer_width ) / 2,
+			38,
+			foundation_pdf_escape_text( $footer )
+		);
+
+		$stream_text = implode( "\n", $ops );
+		$objects[ $content_objects[ $index ] ] = '<< /Length ' . strlen( $stream_text ) . ' >>' . "\nstream\n" . $stream_text . "\nendstream";
+		$objects[ $page_objects[ $index ] ]    = '<< /Type /Page /Parent ' . $pages_obj . ' 0 R /MediaBox [0 0 ' . (int) FOUNDATION_PDF_PAGE_W . ' ' . (int) FOUNDATION_PDF_PAGE_H . '] /Resources << /Font << /F1 ' . $font_obj . ' 0 R /F2 ' . $font_bold_obj . ' 0 R >> >> /Contents ' . $content_objects[ $index ] . ' 0 R >>';
 	}
 
 	$pdf     = "%PDF-1.4\n";
@@ -1496,10 +2043,11 @@ function foundation_generate_pdf_attachment( $contact, $summary, $quote, $settin
 	$temp_file = foundation_create_temp_report_file( foundation_get_report_filename( $reference, 'pdf' ) );
 	if ( ! $temp_file || false === file_put_contents( $temp_file, $pdf ) ) {
 		if ( $temp_file ) {
-			@unlink( $temp_file );
+			@unlink( $temp_file ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		}
 		return '';
 	}
+
 	return $temp_file;
 }
 

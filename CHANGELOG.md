@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.6.3, 9 August 2026
+
+- Rewrites the PDF attachment as a branded, properly laid-out document: masthead, contact block,
+  the customer's answers grouped by section in plain English, an itemised estimate table with
+  right-aligned amounts, emphasised totals and the VAT/planning-estimate small print. Adds a real
+  text-layout engine (Helvetica metrics for wrapping and right alignment, multi-page handling).
+- Fixes currency symbols being stripped from the PDF. The report fonts now declare
+  `/WinAnsiEncoding` and text is converted to Windows-1252, so `£` renders instead of vanishing —
+  previously a total read "11,000 excluding VAT" with no currency symbol at all.
+- Ships a single PDF attachment rather than a ZIP bundling a PDF, a JSON file and a README, so
+  non-technical recipients get one readable document.
+- Adds a thank-you message, an expected reply time and social links beneath the estimate on the
+  final screen, reusing the social URLs already configured for the customer email.
+- Adds a **Success screen wording** panel to the Customer Journey tab covering the thank-you
+  message, reply time, follow-us heading and all five social links, so the copy can be updated
+  without a developer.
+- Fixes the final screen collapsing to an unbalanced full-width layout when no closing image is
+  set: the content column is now capped and centred, so it reads correctly with or without an image.
+- Fixes the consent and marketing tick boxes sitting out of line with their labels. A later rule
+  resized the control from 20px to 24px without updating the offset tuned for the smaller box.
+- Rewrites the **Need help** panel, which mixed internal wording ("tailored work", "without
+  blocking the rest of the estimate") with an odd fallback heading, into plain customer-facing
+  English.
+- Keeps `FOUNDATION_DB_VERSION` at 1.4.0. No schema migration or blueprint reapply is required.
+
 ## 1.6.2, 8 August 2026
 
 Fixes found during an independent pre-launch QA pass of 1.6.1.

@@ -1185,6 +1185,64 @@ body.foundation-modal-open {
 	flex-direction: column;
 	justify-content: center;
 	min-height: 100%;
+	/* Without a closing image the success view spans the full modal width, so
+	   the column is capped and centred rather than stranded against one edge. */
+	margin-inline: auto;
+	max-width: 640px;
+	width: 100%;
+}
+
+.foundation-success-response {
+	color: var(--fpc-ink-soft);
+	font-weight: 750;
+	margin: 2px 0 0;
+}
+
+.foundation-success-social {
+	border-top: 1px solid var(--fpc-border);
+	margin-top: 26px;
+	padding-top: 18px;
+	width: 100%;
+}
+
+.foundation-success-social-heading {
+	color: var(--fpc-muted);
+	font-size: 0.78rem;
+	font-weight: 800;
+	letter-spacing: 0.1em;
+	margin: 0 0 12px;
+	text-transform: uppercase;
+}
+
+.foundation-success-social-links {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 10px;
+	margin: 0;
+}
+
+.foundation-success-social-links a {
+	border: 1px solid var(--fpc-border-strong);
+	border-radius: 999px;
+	color: var(--fpc-ink);
+	display: inline-flex;
+	font-size: 0.86rem;
+	font-weight: 750;
+	min-height: 44px;
+	align-items: center;
+	padding: 0 18px;
+	text-decoration: none;
+}
+
+.foundation-success-social-links a:hover {
+	background: var(--fpc-surface-soft);
+	border-color: var(--fpc-accent-dark);
+	color: var(--fpc-accent-dark);
+}
+
+.foundation-success-social-links a:focus-visible {
+	box-shadow: var(--fpc-focus);
+	outline: 0;
 }
 
 .foundation-success-mark {
@@ -2276,6 +2334,10 @@ body.foundation-modal-open {
 	accent-color: #0b725f;
 	height: 24px;
 	width: 24px;
+	/* The base rule sizes the control at 20px and nudges it down by 1px to sit
+	   on the first line of the label. At 24px that nudge overshoots, so the
+	   control is re-centred against the same line box here. */
+	margin-top: -1px;
 }
 
 .foundation-privacy-check a {

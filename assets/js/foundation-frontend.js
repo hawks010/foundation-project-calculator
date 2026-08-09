@@ -1212,7 +1212,19 @@
 		var reference = state.reference ? '<p class="foundation-success-reference"><span>Your reference</span><strong>' + escapeHtml(state.reference) + '</strong></p>' : '';
 		var confirmation = confirmationMessage ? '<p class="foundation-success-email-note">' + escapeHtml(confirmationMessage) + '</p>' : '';
 		var mobileSuccessImage = branding.successImageUrl ? '<div class="foundation-success-mobile-image"><img src="' + escapeHtml(branding.successImageUrl) + '" alt=""></div>' : '';
-		getCanvas().innerHTML = '<section class="foundation-success">' + mobileSuccessImage + '<div class="foundation-success-mark" aria-hidden="true">✓</div><p class="foundation-kicker">Safely received</p><h1 tabindex="-1" data-foundation-view-heading>Thank you, ' + escapeHtml(state.contact.name || 'there') + '</h1><p>' + escapeHtml(primaryMessage) + '</p>' + reference + confirmation + renderQuoteTotals(quote, false) + '<button type="button" class="foundation-primary-button" data-success-close>Close calculator</button></section>';
+		var responseTime = branding.successResponseTime ? '<p class="foundation-success-response">' + escapeHtml(branding.successResponseTime) + '</p>' : '';
+		var social = '';
+		var socialLinks = branding.socialLinks && typeof branding.socialLinks === 'object' ? branding.socialLinks : null;
+		if (socialLinks) {
+			var socialItems = Object.keys(socialLinks).map(function (label) {
+				return '<a href="' + escapeHtml(socialLinks[label]) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(label) + '</a>';
+			});
+			if (socialItems.length) {
+				var followHeading = branding.successFollowHeading || 'Follow along in the meantime';
+				social = '<div class="foundation-success-social"><p class="foundation-success-social-heading">' + escapeHtml(followHeading) + '</p><p class="foundation-success-social-links">' + socialItems.join('') + '</p></div>';
+			}
+		}
+		getCanvas().innerHTML = '<section class="foundation-success">' + mobileSuccessImage + '<div class="foundation-success-mark" aria-hidden="true">✓</div><p class="foundation-kicker">Safely received</p><h1 tabindex="-1" data-foundation-view-heading>Thank you, ' + escapeHtml(state.contact.name || 'there') + '</h1><p>' + escapeHtml(primaryMessage) + '</p>' + responseTime + reference + confirmation + renderQuoteTotals(quote, false) + social + '<button type="button" class="foundation-primary-button" data-success-close>Close calculator</button></section>';
 		getCanvas().querySelector('[data-success-close]').addEventListener('click', closeCalculator);
 	}
 
@@ -1647,7 +1659,7 @@
 		panel.className = 'foundation-help-panel foundation-overlay-panel';
 		panel.setAttribute('role', 'dialog'); panel.setAttribute('aria-modal', 'true'); panel.setAttribute('aria-labelledby', 'foundation-help-title');
 		var step = state.view === 'step' ? steps[state.currentStepIndex] : null;
-		panel.innerHTML = '<div class="foundation-save-dialog foundation-help-dialog"><button type="button" class="foundation-save-close" data-panel-close aria-label="Close help">×</button><p class="foundation-kicker">Need help?</p><h2 id="foundation-help-title">' + escapeHtml(step ? step.title : 'You do not need all the answers') + '</h2><p>Choose <strong>Not sure</strong> whenever it is offered. Tailored work will stay in your project brief without blocking the rest of the estimate.</p><ul><li>You can go back without losing completed answers.</li><li>Your estimate updates as soon as we know enough to price something.</li><li>Save progress at any time to continue on another device.</li></ul><button type="button" class="foundation-primary-button" data-panel-close>Back to my brief</button></div>';
+		panel.innerHTML = '<div class="foundation-save-dialog foundation-help-dialog"><button type="button" class="foundation-save-close" data-panel-close aria-label="Close help">×</button><p class="foundation-kicker">Need help?</p><h2 id="foundation-help-title">' + escapeHtml(step ? step.title : 'How this works') + '</h2><p>Answer what you can. If you are not sure about something, pick <strong>Not sure</strong> and we will talk it through with you later. It will not hold up the rest of your estimate.</p><ul><li>You can go back at any point. Nothing you have already answered is lost.</li><li>Your estimate builds up as you answer, so you will see prices along the way.</li><li>You can save what you have done and come back to it later on any device.</li></ul><button type="button" class="foundation-primary-button" data-panel-close>Back to my brief</button></div>';
 		suspendMainModalForPanel(panel);
 		panel.querySelectorAll('[data-panel-close]').forEach(function (button) { button.addEventListener('click', function () { closeOverlayPanel(panel); }); });
 		panel.querySelector('[data-panel-close]').focus();

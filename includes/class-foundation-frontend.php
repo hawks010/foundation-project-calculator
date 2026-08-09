@@ -230,6 +230,9 @@ class Foundation_Frontend {
 				'testimonialQuote'       => $settings['testimonial_quote'],
 				'testimonialAttribution' => $settings['testimonial_attribution'],
 				'successMessage'         => $settings['success_message'],
+				'successResponseTime'    => $settings['success_response_time'] ?? '',
+				'successFollowHeading'   => $settings['success_follow_heading'] ?? '',
+				'socialLinks'            => foundation_get_social_links( $settings ),
 				'quoteModeEnabled'       => foundation_is_quote_mode_enabled( $settings ),
 			),
 			'resume' => array(

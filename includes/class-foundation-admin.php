@@ -155,6 +155,11 @@ class Foundation_Admin {
 
 		$settings = foundation_sanitize_settings( array_merge( $current, $input ) );
 		update_option( 'foundation_form_settings', $settings, false );
+
+		if ( 'journey' === $section ) {
+			$this->redirect( 'journey', 'settings_saved' );
+		}
+
 		$this->redirect( in_array( $section, array( 'emails', 'branding' ), true ) ? 'emails' : 'advanced', 'settings_saved' );
 	}
 
@@ -1226,6 +1231,36 @@ class Foundation_Admin {
 					<?php $this->render_system_finish_card( '2', __( 'Contact details', 'foundation-customer-form' ), __( 'Collects the customer details only after the estimate.', 'foundation-customer-form' ), 'testimonial_image_url', __( 'Contact image', 'foundation-customer-form' ), $settings['testimonial_image_url'] ?? '' ); ?>
 					<?php $this->render_system_finish_card( '3', __( 'Success', 'foundation-customer-form' ), __( 'Confirms the enquiry reference and next steps.', 'foundation-customer-form' ), 'success_image_url', __( 'Closing image', 'foundation-customer-form' ), $settings['success_image_url'] ?? '' ); ?>
 				</div>
+
+				<form class="fpc-success-copy-form" method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+					<?php wp_nonce_field( 'foundation_save_settings' ); ?>
+					<input type="hidden" name="action" value="foundation_save_settings">
+					<input type="hidden" name="foundation_settings_section" value="journey">
+
+					<div class="fpc-success-copy-heading">
+						<h4><?php esc_html_e( 'Success screen wording', 'foundation-customer-form' ); ?></h4>
+						<p><?php esc_html_e( 'Shown to the customer on the final screen, after their estimate. Edit here without needing a developer.', 'foundation-customer-form' ); ?></p>
+					</div>
+
+					<?php $this->textarea_field( 'success_message', __( 'Thank-you message', 'foundation-customer-form' ), $settings['success_message'] ?? '', 3 ); ?>
+					<?php $this->input_field( 'success_response_time', __( 'When we will reply', 'foundation-customer-form' ), $settings['success_response_time'] ?? '', 'text', false, __( 'For example: A member of the team will get back to you within 1 to 3 working days.', 'foundation-customer-form' ) ); ?>
+					<?php $this->input_field( 'success_follow_heading', __( 'Follow-us heading', 'foundation-customer-form' ), $settings['success_follow_heading'] ?? '', 'text', false, __( 'Sits above the social links. Leave the links below empty to hide this section entirely.', 'foundation-customer-form' ) ); ?>
+
+					<div class="fpc-success-copy-heading">
+						<h4><?php esc_html_e( 'Social links', 'foundation-customer-form' ); ?></h4>
+						<p><?php esc_html_e( 'Used on the success screen and in the customer confirmation email. Clear a field to hide that network.', 'foundation-customer-form' ); ?></p>
+					</div>
+
+					<div class="fpc-success-social-grid">
+						<?php $this->input_field( 'linkedin_url', __( 'LinkedIn', 'foundation-customer-form' ), $settings['linkedin_url'] ?? '', 'url' ); ?>
+						<?php $this->input_field( 'instagram_url', __( 'Instagram', 'foundation-customer-form' ), $settings['instagram_url'] ?? '', 'url' ); ?>
+						<?php $this->input_field( 'facebook_url', __( 'Facebook', 'foundation-customer-form' ), $settings['facebook_url'] ?? '', 'url' ); ?>
+						<?php $this->input_field( 'tiktok_url', __( 'TikTok', 'foundation-customer-form' ), $settings['tiktok_url'] ?? '', 'url' ); ?>
+						<?php $this->input_field( 'twitter_url', __( 'X (Twitter)', 'foundation-customer-form' ), $settings['twitter_url'] ?? '', 'url' ); ?>
+					</div>
+
+					<p class="fpc-success-copy-actions"><button class="button button-primary" type="submit"><?php esc_html_e( 'Save success screen', 'foundation-customer-form' ); ?></button></p>
+				</form>
 			</section>
 		</div>
 		<?php
